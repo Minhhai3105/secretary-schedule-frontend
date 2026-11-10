@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 import type { Schedule } from '../services/schedules'
 import { vietnamDate, vietnamTime } from '../utils/week'
 
-const props = defineProps<{ schedule: Schedule | null; loading: boolean; errorKey: string; cancelling: boolean; cancelErrorKey: string }>()
+const props = defineProps<{ schedule: Schedule | null; loading: boolean; errorKey: string; cancelling: boolean; cancelErrorKey: string; backKey: string }>()
 const emit = defineEmits<{ back: []; retry: []; edit: []; cancelConfirmed: [] }>()
 const { locale, t } = useI18n({ useScope: 'global' })
 const confirmingCancel = ref(false)
@@ -52,7 +52,7 @@ const meetingLink = computed(() => {
     <div class="detail-heading">
       <h1>{{ t('detail.title') }}</h1>
       <p>{{ t('detail.subtitle') }}</p>
-      <button class="btn btn-link px-0" type="button" :disabled="props.cancelling" @click="emit('back')">{{ t('detail.back') }}</button>
+      <button class="btn btn-link px-0" type="button" :disabled="props.cancelling" @click="emit('back')">{{ t(props.backKey) }}</button>
     </div>
 
     <p v-if="props.loading" class="alert alert-light" role="status">{{ t('detail.loading') }}</p>

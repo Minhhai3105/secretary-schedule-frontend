@@ -66,6 +66,8 @@ export const i18n = createI18n({
       },
       week: {
         navigation: 'Điều hướng',
+        expandSidebar: 'Mở thanh bên',
+        collapseSidebar: 'Thu gọn thanh bên',
         privateSchedule: 'Lịch cá nhân của bạn',
         personal: 'Cá nhân',
         title: 'Lịch tuần',
@@ -144,6 +146,17 @@ export const i18n = createI18n({
         preparation: 'Cần chuẩn bị', notes: 'Ghi chú', notProvided: 'Chưa có thông tin',
         meetingLink: 'Mở liên kết cuộc họp',
       },
+      history: {
+        title: 'Lịch sử', subtitle: 'Các lịch đã qua và các lịch đã hủy.',
+        back: '← Về Lịch sử', searchLabel: 'Tìm theo tiêu đề',
+        searchPlaceholder: 'Nhập tên lịch cần tìm', search: 'Tìm kiếm',
+        filterLabel: 'Loại lịch', all: 'Tất cả', past: 'Đã qua', cancelled: 'Đã hủy', upcoming: 'Sắp diễn ra',
+        loading: 'Đang tải lịch sử…', oneResult: '1 lịch trong Lịch sử', total: '{count} lịch trong Lịch sử',
+        empty: 'Không có lịch nào phù hợp.', pagination: 'Phân trang lịch sử',
+        previous: 'Trang trước', next: 'Trang sau', page: 'Trang {page}/{total}',
+        networkError: 'Không thể kết nối máy chủ để tải lịch sử.',
+        loadError: 'Không thể tải lịch sử. Vui lòng thử lại.',
+      },
       errors: {
         network: 'Không thể kết nối máy chủ. Vui lòng thử lại.',
         invalidCredentials: 'Email hoặc mật khẩu chưa đúng. Vui lòng thử lại.',
@@ -205,6 +218,8 @@ export const i18n = createI18n({
       },
       week: {
         navigation: 'Navigation',
+        expandSidebar: 'Expand sidebar',
+        collapseSidebar: 'Collapse sidebar',
         privateSchedule: 'Your personal schedule',
         personal: 'Personal',
         title: 'Weekly schedule',
@@ -282,6 +297,17 @@ export const i18n = createI18n({
         time: 'Time', mode: 'Meeting mode', relatedPerson: 'Related person',
         preparation: 'Preparation', notes: 'Notes', notProvided: 'Not provided',
         meetingLink: 'Open meeting link',
+      },
+      history: {
+        title: 'History', subtitle: 'Past and cancelled schedules.',
+        back: '← Back to History', searchLabel: 'Search by title',
+        searchPlaceholder: 'Enter a schedule title', search: 'Search',
+        filterLabel: 'Schedule type', all: 'All', past: 'Past', cancelled: 'Cancelled', upcoming: 'Upcoming',
+        loading: 'Loading history…', oneResult: '1 result in History', total: '{count} results in History',
+        empty: 'No matching schedules.', pagination: 'History pages',
+        previous: 'Previous page', next: 'Next page', page: 'Page {page}/{total}',
+        networkError: 'Could not connect to the server to load History.',
+        loadError: 'Could not load History. Please try again.',
       },
       errors: {
         network: 'Could not connect to the server. Please try again.',

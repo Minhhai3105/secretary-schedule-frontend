@@ -1,9 +1,27 @@
 .week-shell { display: flex; min-height: 100vh; color: #253248; }
-.week-sidebar { display: flex; flex-direction: column; flex: 0 0 208px; border-right: 1px solid #dce4ef; background: #fff; }
-.week-brand { padding: 24px 20px 30px; font-size: 23px; font-weight: 700; }
+.week-sidebar { display: flex; flex-direction: column; flex: 0 0 208px; border-right: 1px solid #dce4ef; background: #fff; transition: flex-basis .2s ease; }
+.week-sidebar-header { display: flex; align-items: flex-start; gap: 4px; padding: 20px 12px 26px; }
+.week-sidebar-toggle { display: grid; place-items: center; flex: 0 0 32px; width: 32px; height: 32px; border: 1px solid #dce4ef; border-radius: 6px; background: #fff; color: #253248; cursor: pointer; }
+.week-sidebar-toggle span { font-size: 26px; line-height: 1; transform: translateY(-2px); }
+.week-sidebar-toggle:focus-visible, .week-logout-button:focus-visible { outline: 2px solid #1755c4; outline-offset: 2px; }
+.week-brand { min-width: 0; flex: 1; padding: 0 0 0 8px; font-size: 23px; font-weight: 700; }
 .week-brand small { display: block; margin-top: 2px; color: #72829a; font-size: 11px; font-weight: 500; text-transform: uppercase; }
 .week-sidebar nav { padding: 0 12px; }
-.week-nav-active { display: block; padding: 13px 14px; border-radius: 6px; background: #eaf2ff; color: #1755c4; font-weight: 700; }
+.week-nav-item { display: flex; align-items: center; gap: 10px; width: 100%; padding: 13px 14px; border: 0; border-radius: 6px; background: transparent; color: #253248; text-align: left; cursor: pointer; }
+.week-nav-item:hover { background: #f2f6fc; }
+.week-nav-item:focus-visible { outline: 2px solid #1755c4; outline-offset: 2px; }
+.week-nav-active, .week-nav-active:hover { background: #eaf2ff; color: #1755c4; font-weight: 700; }
+.week-nav-icon { font-size: 20px; line-height: 1; }
+.week-nav-svg { width: 20px; height: 20px; flex: 0 0 20px; }
+.week-logout-button { display: flex; justify-content: center; align-items: center; gap: 8px; }
+.week-logout-icon { width: 17px; height: 17px; flex: 0 0 17px; }
+.week-shell-collapsed .week-sidebar { flex-basis: 72px; }
+.week-shell-collapsed .week-sidebar-header { justify-content: center; padding: 16px 8px 28px; }
+.week-shell-collapsed .week-brand, .week-shell-collapsed .week-privacy, .week-shell-collapsed .week-profile, .week-shell-collapsed .week-nav-label, .week-shell-collapsed .week-logout-label { display: none; }
+.week-shell-collapsed .week-sidebar nav { padding: 0 8px; }
+.week-shell-collapsed .week-nav-item { justify-content: center; padding: 13px 0; }
+.week-shell-collapsed .week-sidebar-bottom { padding: 12px 8px 18px; }
+.week-shell-collapsed .week-logout-button { height: 40px; padding: 0; }
 .week-sidebar-bottom { margin-top: auto; padding: 20px 16px; }
 .week-privacy { color: #72829a; font-size: 12px; line-height: 1.5; }
 .week-profile { display: flex; align-items: center; gap: 10px; margin: 20px -16px 14px; padding: 18px 16px 0; border-top: 1px solid #dce4ef; }
@@ -55,11 +73,6 @@
   .week-day { flex: 0 0 160px; }
 }
 @media (max-width: 700px) {
-  .week-sidebar { flex-basis: 72px; }
-  .week-brand { padding: 24px 8px; font-size: 12px; text-align: center; }
-  .week-brand small, .week-nav-active, .week-sidebar-bottom .week-privacy, .week-user { display: none; }
-  .week-sidebar-bottom { padding: 8px; }
-  .week-profile { margin: 0 0 8px; padding: 8px 0 0; }
   .week-topbar { padding-left: 16px; }
   .week-topbar > span:last-child { display: none; }
   .week-content { padding: 24px 12px; }

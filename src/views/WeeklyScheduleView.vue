@@ -6,6 +6,7 @@ import { cancelSchedule, getSchedule, listSchedules, ScheduleCancelError, Schedu
 import ScheduleDetailView from '../components/ScheduleDetailView.vue'
 import CreateScheduleView from '../components/CreateScheduleView.vue'
 import EditScheduleView from '../components/EditScheduleView.vue'
+import HistoryView from '../components/HistoryView.vue'
 import { mondayOf, shiftDate, todayInVietnam, vietnamDate, vietnamTime, weekDates } from '../utils/week'
 
 const props = defineProps<{ session: LoginResult; loggingOut: boolean; logoutError: string }>()
@@ -16,6 +17,8 @@ const emit = defineEmits<{
 }>()
 const { locale, t } = useI18n({ useScope: 'global' })
 const weekStart = ref(mondayOf(todayInVietnam()))
+const activeSection = ref<'week' | 'history'>('week')
+const sidebarCollapsed = ref(window.matchMedia('(max-width: 700px)').matches)
 const selectedPerson = ref('')
 const schedules = ref<Schedule[]>([])
 const relatedPeople = ref<string[]>([])
@@ -233,6 +236,18 @@ async function confirmCancel() {
   }
 }
 
+function showWeek() {
+  if (activeSection.value === 'week' && !selectedScheduleId.value) return
+  activeSection.value = 'week'
+  closeDetail()
+}
+
+function showHistory() {
+  if (activeSection.value === 'history' && !selectedScheduleId.value) return
+  activeSection.value = 'history'
+  closeDetail()
+}
+
 function closeDetail() {
   editingSchedule.value = false
   ++detailRequest
@@ -247,11 +262,37 @@ onMounted(() => { void load() })
 </script>
 
 <template>
-  <div class="week-shell">
+  <div class="week-shell" :class="{ 'week-shell-collapsed': sidebarCollapsed }">
     <aside class="week-sidebar">
-      <div class="week-brand">{{ t('intro.brand') }}<small>{{ t('week.privateSchedule') }}</small></div>
+      <div class="week-sidebar-header">
+        <div class="week-brand">{{ t('intro.brand') }}<small>{{ t('week.privateSchedule') }}</small></div>
+        <button class="week-sidebar-toggle" type="button"
+          :aria-label="t(sidebarCollapsed ? 'week.expandSidebar' : 'week.collapseSidebar')"
+          :title="t(sidebarCollapsed ? 'week.expandSidebar' : 'week.collapseSidebar')"
+          @click="sidebarCollapsed = !sidebarCollapsed">
+          <span aria-hidden="true">{{ sidebarCollapsed ? '›' : '‹' }}</span>
+        </button>
+      </div>
       <nav :aria-label="t('week.navigation')">
-        <span class="week-nav-active" aria-current="page">▦ &nbsp;{{ t('week.title') }}</span>
+        <button class="week-nav-item" :class="{ 'week-nav-active': activeSection === 'week' }" type="button"
+          :aria-current="activeSection === 'week' ? 'page' : undefined"
+          :aria-label="sidebarCollapsed ? t('week.title') : undefined"
+          :title="sidebarCollapsed ? t('week.title') : undefined"
+          :disabled="creatingSchedule || editingSchedule || cancellingSchedule" @click="showWeek">
+          <span class="week-nav-icon" aria-hidden="true">▦</span><span class="week-nav-label">{{ t('week.title') }}</span>
+        </button>
+        <button class="week-nav-item" :class="{ 'week-nav-active': activeSection === 'history' }" type="button"
+          :aria-current="activeSection === 'history' ? 'page' : undefined"
+          :aria-label="sidebarCollapsed ? t('history.title') : undefined"
+          :title="sidebarCollapsed ? t('history.title') : undefined"
+          :disabled="creatingSchedule || editingSchedule || cancellingSchedule" @click="showHistory">
+          <svg class="week-nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" />
+          </svg>
+          <span class="week-nav-label">{{ t('history.title') }}</span>
+        </button>
+
       </nav>
       <div class="week-sidebar-bottom">
         <p class="week-privacy">{{ t('week.privacy') }}</p>
@@ -259,14 +300,22 @@ onMounted(() => { void load() })
           <div class="week-avatar" aria-hidden="true">{{ props.session.user.name.trim().charAt(0).toUpperCase() }}</div>
           <div class="week-user"><strong>{{ props.session.user.name }}</strong><small>{{ props.session.user.email }}</small></div>
         </div>
-        <button class="btn btn-outline-secondary btn-sm w-100" type="button" :disabled="props.loggingOut || loading"
-          @click="emit('logoutRequested')">{{ t(props.loggingOut ? 'session.loggingOut' : 'session.logout') }}</button>
+        <button class="week-logout-button btn btn-outline-secondary btn-sm w-100" type="button"
+          :aria-label="t(props.loggingOut ? 'session.loggingOut' : 'session.logout')"
+          :title="sidebarCollapsed ? t(props.loggingOut ? 'session.loggingOut' : 'session.logout') : undefined"
+          :disabled="props.loggingOut || loading" @click="emit('logoutRequested')">
+          <svg class="week-logout-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M10 17l5-5-5-5M15 12H3M12 3h6a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-6" />
+          </svg>
+          <span class="week-logout-label">{{ t(props.loggingOut ? 'session.loggingOut' : 'session.logout') }}</span>
+        </button>
       </div>
     </aside>
 
     <div class="week-area">
       <header class="week-topbar">
-        <span>{{ t('week.personal') }} &nbsp;/&nbsp; <strong>{{ t(creatingSchedule ? 'create.title' : editingSchedule ? 'edit.title' : selectedScheduleId ? 'detail.title' : 'week.title') }}</strong></span>
+        <span>{{ t('week.personal') }} &nbsp;/&nbsp; <strong>{{ t(creatingSchedule ? 'create.title' : editingSchedule ? 'edit.title' : selectedScheduleId ? 'detail.title' : activeSection === 'history' ? 'history.title' : 'week.title') }}</strong></span>
         <span>{{ t('week.timezone') }}</span>
       </header>
       <main class="week-content">
@@ -280,8 +329,12 @@ onMounted(() => { void load() })
           @session-updated="emit('sessionUpdated', $event)" @session-expired="emit('sessionExpired')" />
         <ScheduleDetailView v-else-if="selectedScheduleId" :schedule="selectedSchedule" :loading="detailLoading"
           :error-key="detailErrorKey" :cancelling="cancellingSchedule" :cancel-error-key="cancelErrorKey"
+          :back-key="activeSection === 'history' ? 'history.back' : 'detail.back'"
           @back="closeDetail" @retry="loadDetail" @edit="openEdit" @cancel-confirmed="confirmCancel" />
-        <template v-else>
+        <HistoryView v-if="activeSection === 'history'" v-show="!selectedScheduleId" :session="props.session"
+          @open-detail="openDetail" @session-updated="emit('sessionUpdated', $event)"
+          @session-expired="emit('sessionExpired')" />
+        <template v-if="activeSection === 'week' && !creatingSchedule && !selectedScheduleId">
         <div class="week-heading">
           <div><h1>{{ t('week.title') }}</h1><p>{{ t('week.subtitle') }}</p></div>
           <button class="btn btn-primary" type="button" :disabled="loading" @click="creatingSchedule = true">{{ t('create.open') }}</button>
