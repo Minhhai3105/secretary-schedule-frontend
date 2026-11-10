@@ -1,9 +1,12 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
+import LanguageSwitch from './components/LanguageSwitch.vue'
 import LoginView from './views/LoginView.vue'
 import RegisterView from './views/RegisterView.vue'
-import { logout, refreshSession, type LoginResult } from './services/auth'
+import { AuthError, logout, refreshSession, type LoginResult } from './services/auth'
 
+const { locale, t } = useI18n({ useScope: 'global' })
 const session = ref<LoginResult | null>(null)
 const authScreen = ref<'login' | 'register'>('login')
 const restoring = ref(true)
@@ -11,13 +14,15 @@ const restoreError = ref('')
 const logoutError = ref('')
 const loggingOut = ref(false)
 
+watch(locale, (value) => { document.documentElement.lang = value }, { immediate: true })
+
 async function restore() {
   restoring.value = true
   restoreError.value = ''
   try {
     session.value = await refreshSession()
   } catch (cause) {
-    restoreError.value = cause instanceof Error ? cause.message : 'Không thể khôi phục phiên.'
+    restoreError.value = cause instanceof AuthError ? `errors.${cause.code}` : 'errors.restoreFailed'
   } finally {
     restoring.value = false
   }
@@ -36,7 +41,7 @@ async function signOut() {
     await logout()
     session.value = null
   } catch (cause) {
-    logoutError.value = cause instanceof Error ? cause.message : 'Đăng xuất chưa thành công.'
+    logoutError.value = cause instanceof AuthError ? `errors.${cause.code}` : 'errors.logoutFailed'
   } finally {
     loggingOut.value = false
   }
@@ -46,12 +51,13 @@ onMounted(restore)
 </script>
 
 <template>
+  <div class="language-switch-position"><LanguageSwitch /></div>
   <main v-if="restoring" class="container py-5" role="status" aria-live="polite">
-    Đang khôi phục phiên đăng nhập…
+    {{ t('session.restoring') }}
   </main>
   <main v-else-if="restoreError" class="container py-5">
-    <p class="alert alert-warning" role="alert">{{ restoreError }}</p>
-    <button class="btn btn-primary" type="button" @click="restore">Thử lại</button>
+    <p class="alert alert-warning" role="alert">{{ t(restoreError) }}</p>
+    <button class="btn btn-primary" type="button" @click="restore">{{ t('common.retry') }}</button>
   </main>
   <template v-else-if="!session">
     <LoginView v-if="authScreen === 'login'" @authenticated="onAuthenticated" @register-requested="authScreen = 'register'" />
@@ -60,13 +66,17 @@ onMounted(restore)
   <main v-else class="container py-5">
     <div class="d-flex justify-content-between align-items-center gap-3">
       <div>
-        <h1 class="h3">Xin chào, {{ session.user.name }}</h1>
-        <p class="text-secondary">Bạn đã đăng nhập thành công.</p>
+        <h1 class="h3">{{ t('session.greeting', { name: session.user.name }) }}</h1>
+        <p class="text-secondary">{{ t('session.signedIn') }}</p>
       </div>
       <button class="btn btn-outline-primary" type="button" :disabled="loggingOut" @click="signOut">
-        {{ loggingOut ? 'Đang đăng xuất…' : 'Đăng xuất' }}
+        {{ t(loggingOut ? 'session.loggingOut' : 'session.logout') }}
       </button>
     </div>
-    <p v-if="logoutError" class="alert alert-danger mt-3" role="alert">{{ logoutError }}</p>
+    <p v-if="logoutError" class="alert alert-danger mt-3" role="alert">{{ t(logoutError) }}</p>
   </main>
 </template>
+
+<style scoped>
+.language-switch-position { position: fixed; top: 16px; right: 24px; z-index: 10; }
+</style>

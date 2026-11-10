@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import PasswordField from '../components/PasswordField.vue'
 import { login, LoginError, type LoginResult } from '../services/auth'
 
+const { t } = useI18n({ useScope: 'global' })
 const emit = defineEmits<{ authenticated: [result: LoginResult]; registerRequested: [] }>()
 const email = ref('')
 const password = ref('')
@@ -14,7 +16,7 @@ async function submit() {
 
   error.value = ''
   if (!email.value.trim() || !password.value) {
-    error.value = 'Vui lòng nhập email và mật khẩu.'
+    error.value = 'login.required'
     return
   }
 
@@ -22,9 +24,7 @@ async function submit() {
   try {
     emit('authenticated', await login(email.value.trim(), password.value))
   } catch (cause) {
-    error.value = cause instanceof LoginError
-      ? cause.message
-      : 'Đăng nhập chưa thành công. Vui lòng thử lại.'
+    error.value = cause instanceof LoginError ? `errors.${cause.code}` : 'errors.loginFailed'
   } finally {
     loading.value = false
   }
@@ -34,16 +34,16 @@ async function submit() {
 <template>
   <div class="login-layout">
     <aside class="login-intro">
-      <div class="brand">Lịch trình</div>
+      <div class="brand">{{ t('intro.brand') }}</div>
       <div class="intro-content">
-        <h1>Chủ động mỗi ngày.</h1>
-        <p>Sắp xếp lịch cá nhân, chuẩn bị trước cuộc họp và nhận email nhắc đúng lúc.</p>
+        <h1>{{ t('intro.headline') }}</h1>
+        <p>{{ t('intro.description') }}</p>
         <div class="benefits">
-          <h2>Một nơi cho mọi lịch hẹn</h2>
+          <h2>{{ t('intro.benefitsTitle') }}</h2>
           <ul>
-            <li>Xem lịch cả tuần trong một màn hình</li>
-            <li>Nhắc việc qua email</li>
-            <li>Tạo lịch nhanh với trợ lý AI</li>
+            <li>{{ t('intro.week') }}</li>
+            <li>{{ t('intro.reminders') }}</li>
+            <li>{{ t('intro.assistant') }}</li>
           </ul>
         </div>
       </div>
@@ -51,27 +51,27 @@ async function submit() {
 
     <main class="login-main">
       <div class="login-form-wrap">
-        <h2>Chào mừng trở lại</h2>
-        <p class="form-subtitle">Đăng nhập để tiếp tục quản lý lịch của bạn.</p>
+        <h2>{{ t('login.title') }}</h2>
+        <p class="form-subtitle">{{ t('login.subtitle') }}</p>
 
         <form @submit.prevent="submit">
           <div class="mb-3">
-            <label class="form-label" for="email">Email</label>
+            <label class="form-label" for="email">{{ t('common.email') }}</label>
             <input id="email" v-model="email" class="form-control" type="email"
-              autocomplete="email" placeholder="ban@example.com" required :disabled="loading" />
+              autocomplete="email" :placeholder="t('common.emailPlaceholder')" required :disabled="loading" />
           </div>
           <div class="mb-4">
-            <PasswordField id="password" v-model="password" label="Mật khẩu"
+            <PasswordField id="password" v-model="password" :label="t('common.password')"
               autocomplete="current-password" :disabled="loading" />
           </div>
           <button class="btn btn-primary w-100" type="submit" :disabled="loading">
-            {{ loading ? 'Đang đăng nhập…' : 'Đăng nhập' }}
+            {{ t(loading ? 'login.submitting' : 'login.submit') }}
           </button>
-          <p class="text-center mt-3 mb-0">Chưa có tài khoản? <button class="btn btn-link p-0 align-baseline" type="button" @click="emit('registerRequested')">Đăng ký</button></p>
-          <p v-if="error" class="alert alert-danger mt-4" role="alert" aria-live="polite">{{ error }}</p>
+          <p class="text-center mt-3 mb-0">{{ t('login.noAccount') }} <button class="btn btn-link p-0 align-baseline" type="button" @click="emit('registerRequested')">{{ t('login.register') }}</button></p>
+          <p v-if="error" class="alert alert-danger mt-4" role="alert" aria-live="polite">{{ t(error) }}</p>
         </form>
       </div>
-      <p class="timezone-note">Thời gian hiển thị theo múi giờ Việt Nam.</p>
+      <p class="timezone-note">{{ t('intro.timezone') }}</p>
     </main>
   </div>
 </template>
