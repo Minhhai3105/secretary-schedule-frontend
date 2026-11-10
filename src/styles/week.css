@@ -16,6 +16,7 @@
 .week-topbar { display: flex; justify-content: space-between; gap: 16px; min-height: 64px; align-items: center; padding: 0 130px 0 24px; border-bottom: 1px solid #dce4ef; background: #fff; color: #687991; font-size: 13px; }
 .week-topbar strong { color: #253248; }
 .week-content { padding: 28px 24px 32px; }
+.week-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
 .week-heading h1 { margin: 0; font-size: 28px; font-weight: 700; }
 .week-heading p { margin: 2px 0 18px; color: #72829a; font-size: 14px; }
 .week-controls, .week-navigation, .week-filter { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }

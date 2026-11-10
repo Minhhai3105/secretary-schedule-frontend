@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { AuthError, refreshSession, type LoginResult } from '../services/auth'
 import { getSchedule, listSchedules, ScheduleLoadError, type Schedule } from '../services/schedules'
 import ScheduleDetailView from '../components/ScheduleDetailView.vue'
+import CreateScheduleView from '../components/CreateScheduleView.vue'
 import { mondayOf, shiftDate, todayInVietnam, vietnamDate, vietnamTime, weekDates } from '../utils/week'
 
 const props = defineProps<{ session: LoginResult; loggingOut: boolean; logoutError: string }>()
@@ -19,6 +20,7 @@ const schedules = ref<Schedule[]>([])
 const relatedPeople = ref<string[]>([])
 const loading = ref(false)
 const errorKey = ref('')
+const creatingSchedule = ref(false)
 const selectedScheduleId = ref<string | null>(null)
 const selectedSchedule = ref<Schedule | null>(null)
 const detailLoading = ref(false)
@@ -154,6 +156,14 @@ async function loadDetail() {
   }
 }
 
+function showCreatedSchedule(schedule: Schedule) {
+  weekStart.value = mondayOf(vietnamDate(schedule.starts_at_utc))
+  selectedPerson.value = ''
+  creatingSchedule.value = false
+  openDetail(schedule.id)
+  void load()
+}
+
 function openDetail(id: string) {
   selectedScheduleId.value = id
   void loadDetail()
@@ -190,16 +200,20 @@ onMounted(() => { void load() })
 
     <div class="week-area">
       <header class="week-topbar">
-        <span>{{ t('week.personal') }} &nbsp;/&nbsp; <strong>{{ t(selectedScheduleId ? 'detail.title' : 'week.title') }}</strong></span>
+        <span>{{ t('week.personal') }} &nbsp;/&nbsp; <strong>{{ t(creatingSchedule ? 'create.title' : selectedScheduleId ? 'detail.title' : 'week.title') }}</strong></span>
         <span>{{ t('week.timezone') }}</span>
       </header>
       <main class="week-content">
         <p v-if="props.logoutError" class="alert alert-danger" role="alert">{{ t(props.logoutError) }}</p>
-        <ScheduleDetailView v-if="selectedScheduleId" :schedule="selectedSchedule" :loading="detailLoading"
+        <CreateScheduleView v-if="creatingSchedule" :session="props.session" :related-people="relatedPeople"
+          @cancel="creatingSchedule = false" @created="showCreatedSchedule"
+          @session-updated="emit('sessionUpdated', $event)" @session-expired="emit('sessionExpired')" />
+        <ScheduleDetailView v-else-if="selectedScheduleId" :schedule="selectedSchedule" :loading="detailLoading"
           :error-key="detailErrorKey" @back="closeDetail" @retry="loadDetail" />
         <template v-else>
         <div class="week-heading">
           <div><h1>{{ t('week.title') }}</h1><p>{{ t('week.subtitle') }}</p></div>
+          <button class="btn btn-primary" type="button" :disabled="loading" @click="creatingSchedule = true">{{ t('create.open') }}</button>
         </div>
 
         <div class="week-controls">

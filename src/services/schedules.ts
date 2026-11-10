@@ -80,3 +80,52 @@ export async function getSchedule(accessToken: string, id: string): Promise<Sche
     throw new ScheduleLoadError('failed')
   }
 }
+
+export interface ScheduleCreatePayload {
+  title: string
+  starts_at_utc: string
+  ends_at_utc: string | null
+  meeting_mode: 'online' | 'offline'
+  location: string | null
+  meeting_url: string | null
+  related_person: string
+  preparation: string | null
+  notes: string | null
+}
+
+type ScheduleCreateErrorCode = 'network' | 'unauthorized' | 'validation' | 'failed'
+
+export class ScheduleCreateError extends Error {
+  readonly code: ScheduleCreateErrorCode
+
+  constructor(code: ScheduleCreateErrorCode) {
+    super(code)
+    this.code = code
+  }
+}
+
+export async function createSchedule(accessToken: string, payload: ScheduleCreatePayload): Promise<Schedule> {
+  let response: Response
+  try {
+    response = await fetch(`${apiBaseUrl}/api/schedules`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    })
+  } catch {
+    throw new ScheduleCreateError('network')
+  }
+
+  if (response.status === 401) throw new ScheduleCreateError('unauthorized')
+  if (response.status === 422) throw new ScheduleCreateError('validation')
+  if (!response.ok) throw new ScheduleCreateError('failed')
+
+  try {
+    return (await response.json()) as Schedule
+  } catch {
+    throw new ScheduleCreateError('failed')
+  }
+}
