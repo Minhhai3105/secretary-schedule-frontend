@@ -5,6 +5,13 @@ export interface Schedule {
   ends_at_utc: string | null
   meeting_mode: 'online' | 'offline'
   related_person: string
+  location: string | null
+  meeting_url: string | null
+  preparation: string | null
+  notes: string | null
+  cancelled_at_utc: string | null
+  version: number
+  status: 'upcoming' | 'past' | 'cancelled'
 }
 
 export interface ScheduleList {
@@ -12,7 +19,7 @@ export interface ScheduleList {
   related_people: string[]
 }
 
-type ScheduleLoadErrorCode = 'network' | 'unauthorized' | 'failed'
+type ScheduleLoadErrorCode = 'network' | 'unauthorized' | 'notFound' | 'failed'
 
 export class ScheduleLoadError extends Error {
   readonly code: ScheduleLoadErrorCode
@@ -48,6 +55,27 @@ export async function listSchedules(
 
   try {
     return (await response.json()) as ScheduleList
+  } catch {
+    throw new ScheduleLoadError('failed')
+  }
+}
+
+export async function getSchedule(accessToken: string, id: string): Promise<Schedule> {
+  let response: Response
+  try {
+    response = await fetch(`${apiBaseUrl}/api/schedules/${encodeURIComponent(id)}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
+  } catch {
+    throw new ScheduleLoadError('network')
+  }
+
+  if (response.status === 401) throw new ScheduleLoadError('unauthorized')
+  if (response.status === 404) throw new ScheduleLoadError('notFound')
+  if (!response.ok) throw new ScheduleLoadError('failed')
+
+  try {
+    return (await response.json()) as Schedule
   } catch {
     throw new ScheduleLoadError('failed')
   }

@@ -2,7 +2,8 @@
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { AuthError, refreshSession, type LoginResult } from '../services/auth'
-import { listSchedules, ScheduleLoadError, type Schedule } from '../services/schedules'
+import { getSchedule, listSchedules, ScheduleLoadError, type Schedule } from '../services/schedules'
+import ScheduleDetailView from '../components/ScheduleDetailView.vue'
 import { mondayOf, shiftDate, todayInVietnam, vietnamDate, vietnamTime, weekDates } from '../utils/week'
 
 const props = defineProps<{ session: LoginResult; loggingOut: boolean; logoutError: string }>()
@@ -18,6 +19,11 @@ const schedules = ref<Schedule[]>([])
 const relatedPeople = ref<string[]>([])
 const loading = ref(false)
 const errorKey = ref('')
+const selectedScheduleId = ref<string | null>(null)
+const selectedSchedule = ref<Schedule | null>(null)
+const detailLoading = ref(false)
+const detailErrorKey = ref('')
+let detailRequest = 0
 const days = computed(() => weekDates(weekStart.value))
 const weekdayKeys = ['week.monday', 'week.tuesday', 'week.wednesday', 'week.thursday', 'week.friday', 'week.saturday', 'week.sunday']
 const schedulesByDay = computed(() => {
@@ -108,6 +114,59 @@ function selectPerson(person: string) {
   void load()
 }
 
+async function loadDetail() {
+  const id = selectedScheduleId.value
+  if (!id) return
+  const request = ++detailRequest
+  detailLoading.value = true
+  detailErrorKey.value = ''
+  selectedSchedule.value = null
+  try {
+    let result: Schedule
+    try {
+      result = await getSchedule(props.session.access_token, id)
+    } catch (cause) {
+      if (!(cause instanceof ScheduleLoadError) || cause.code !== 'unauthorized') throw cause
+      const renewed = await refreshSession()
+      if (!renewed) {
+        if (request === detailRequest) emit('sessionExpired')
+        return
+      }
+      emit('sessionUpdated', renewed)
+      result = await getSchedule(renewed.access_token, id)
+    }
+    if (request === detailRequest) selectedSchedule.value = result
+  } catch (cause) {
+    if (request !== detailRequest) return
+    if (cause instanceof ScheduleLoadError && cause.code === 'unauthorized') {
+      emit('sessionExpired')
+    } else if (cause instanceof ScheduleLoadError && cause.code === 'notFound') {
+      detailErrorKey.value = 'detail.notFound'
+    } else if (cause instanceof ScheduleLoadError && cause.code === 'network') {
+      detailErrorKey.value = 'detail.networkError'
+    } else if (cause instanceof AuthError && cause.code === 'restoreNetwork') {
+      detailErrorKey.value = 'detail.networkError'
+    } else {
+      detailErrorKey.value = 'detail.loadError'
+    }
+  } finally {
+    if (request === detailRequest) detailLoading.value = false
+  }
+}
+
+function openDetail(id: string) {
+  selectedScheduleId.value = id
+  void loadDetail()
+}
+
+function closeDetail() {
+  ++detailRequest
+  selectedScheduleId.value = null
+  selectedSchedule.value = null
+  detailLoading.value = false
+  detailErrorKey.value = ''
+}
+
 onMounted(() => { void load() })
 </script>
 
@@ -124,22 +183,24 @@ onMounted(() => { void load() })
           <div class="week-avatar" aria-hidden="true">{{ props.session.user.name.trim().charAt(0).toUpperCase() }}</div>
           <div class="week-user"><strong>{{ props.session.user.name }}</strong><small>{{ props.session.user.email }}</small></div>
         </div>
-        <button class="btn btn-outline-secondary btn-sm w-100" type="button" :disabled="props.loggingOut || loading" @click="emit('logoutRequested')">
-          {{ t(props.loggingOut ? 'session.loggingOut' : 'session.logout') }}
-        </button>
+        <button class="btn btn-outline-secondary btn-sm w-100" type="button" :disabled="props.loggingOut || loading"
+          @click="emit('logoutRequested')">{{ t(props.loggingOut ? 'session.loggingOut' : 'session.logout') }}</button>
       </div>
     </aside>
 
     <div class="week-area">
       <header class="week-topbar">
-        <span>{{ t('week.personal') }} &nbsp;/&nbsp; <strong>{{ t('week.title') }}</strong></span>
+        <span>{{ t('week.personal') }} &nbsp;/&nbsp; <strong>{{ t(selectedScheduleId ? 'detail.title' : 'week.title') }}</strong></span>
         <span>{{ t('week.timezone') }}</span>
       </header>
       <main class="week-content">
+        <p v-if="props.logoutError" class="alert alert-danger" role="alert">{{ t(props.logoutError) }}</p>
+        <ScheduleDetailView v-if="selectedScheduleId" :schedule="selectedSchedule" :loading="detailLoading"
+          :error-key="detailErrorKey" @back="closeDetail" @retry="loadDetail" />
+        <template v-else>
         <div class="week-heading">
           <div><h1>{{ t('week.title') }}</h1><p>{{ t('week.subtitle') }}</p></div>
         </div>
-        <p v-if="props.logoutError" class="alert alert-danger" role="alert">{{ t(props.logoutError) }}</p>
 
         <div class="week-controls">
           <div class="week-navigation">
@@ -177,10 +238,12 @@ onMounted(() => { void load() })
               <div class="week-day-events">
                 <article v-for="schedule in schedulesByDay.get(day) ?? []" :key="schedule.id"
                   class="week-event" :class="`week-event-${schedule.meeting_mode}`">
-                  <time>{{ timeLabel(schedule) }}</time>
-                  <h2>{{ schedule.title }}</h2>
-                  <span class="week-mode">{{ t(schedule.meeting_mode === 'online' ? 'week.online' : 'week.offline') }}</span>
-                  <small>{{ personLabel(schedule.related_person) }}</small>
+                  <button class="week-event-button" type="button" :disabled="loading" @click="openDetail(schedule.id)">
+                    <time>{{ timeLabel(schedule) }}</time>
+                    <strong class="week-event-title">{{ schedule.title }}</strong>
+                    <span class="week-mode">{{ t(schedule.meeting_mode === 'online' ? 'week.online' : 'week.offline') }}</span>
+                    <small>{{ personLabel(schedule.related_person) }}</small>
+                  </button>
                 </article>
                 <p v-if="!(schedulesByDay.get(day)?.length)" class="week-day-empty">{{ t('week.emptyDay') }}</p>
               </div>
@@ -188,6 +251,7 @@ onMounted(() => { void load() })
           </div>
         </template>
         <p class="week-footer">{{ t('week.timezone') }}</p>
+        </template>
       </main>
     </div>
   </div>

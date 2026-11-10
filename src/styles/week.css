@@ -39,9 +39,11 @@
 .week-event { min-height: 155px; margin-bottom: 10px; padding: 9px; border-left: 3px solid; border-radius: 6px; overflow-wrap: anywhere; }
 .week-event-online { border-color: #1755c4; background: #eaf2ff; }
 .week-event-offline { border-color: #138256; background: #edf8f3; }
+.week-event-button { display: block; width: 100%; padding: 0; border: 0; background: transparent; color: inherit; text-align: left; cursor: pointer; }
+.week-event-button:focus-visible { outline: 2px solid #1755c4; outline-offset: 3px; }
 .week-event time { display: block; margin-bottom: 7px; color: #1755c4; font-size: 12px; font-weight: 700; }
 .week-event-offline time { color: #138256; }
-.week-event h2 { margin: 0 0 8px; font-size: 14px; font-weight: 700; line-height: 1.35; }
+.week-event-title { display: block; margin: 0 0 8px; font-size: 14px; font-weight: 700; line-height: 1.35; }
 .week-mode { display: inline-block; padding: 2px 5px; border-radius: 3px; background: #fff; color: #1755c4; font-size: 11px; }
 .week-event-offline .week-mode { color: #138256; }
 .week-event small { display: block; margin-top: 10px; color: #687991; font-size: 11px; }
