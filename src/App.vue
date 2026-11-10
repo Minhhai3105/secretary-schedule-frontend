@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import LanguageSwitch from './components/LanguageSwitch.vue'
 import LoginView from './views/LoginView.vue'
 import RegisterView from './views/RegisterView.vue'
+import WeeklyScheduleView from './views/WeeklyScheduleView.vue'
 import { AuthError, logout, refreshSession, type LoginResult } from './services/auth'
 
 const { locale, t } = useI18n({ useScope: 'global' })
@@ -31,6 +32,11 @@ async function restore() {
 function onAuthenticated(result: LoginResult) {
   session.value = result
   restoreError.value = ''
+}
+
+function onSessionExpired() {
+  session.value = null
+  authScreen.value = 'login'
 }
 
 async function signOut() {
@@ -63,18 +69,8 @@ onMounted(restore)
     <LoginView v-if="authScreen === 'login'" @authenticated="onAuthenticated" @register-requested="authScreen = 'register'" />
     <RegisterView v-else @login-requested="authScreen = 'login'" />
   </template>
-  <main v-else class="container py-5">
-    <div class="d-flex justify-content-between align-items-center gap-3">
-      <div>
-        <h1 class="h3">{{ t('session.greeting', { name: session.user.name }) }}</h1>
-        <p class="text-secondary">{{ t('session.signedIn') }}</p>
-      </div>
-      <button class="btn btn-outline-primary" type="button" :disabled="loggingOut" @click="signOut">
-        {{ t(loggingOut ? 'session.loggingOut' : 'session.logout') }}
-      </button>
-    </div>
-    <p v-if="logoutError" class="alert alert-danger mt-3" role="alert">{{ t(logoutError) }}</p>
-  </main>
+  <WeeklyScheduleView v-else :session="session" :logging-out="loggingOut" :logout-error="logoutError"
+    @session-updated="onAuthenticated" @session-expired="onSessionExpired" @logout-requested="signOut" />
 </template>
 
 <style scoped>
