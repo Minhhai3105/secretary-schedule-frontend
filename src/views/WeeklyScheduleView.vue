@@ -8,6 +8,7 @@ import CreateScheduleView from '../components/CreateScheduleView.vue'
 import EditScheduleView from '../components/EditScheduleView.vue'
 import HistoryView from '../components/HistoryView.vue'
 import ReminderSettingsView from '../components/ReminderSettingsView.vue'
+import EmailAuditView from '../components/EmailAuditView.vue'
 import { mondayOf, shiftDate, todayInVietnam, vietnamDate, vietnamTime, weekDates } from '../utils/week'
 
 const props = defineProps<{ session: LoginResult; loggingOut: boolean; logoutError: string }>()
@@ -18,7 +19,7 @@ const emit = defineEmits<{
 }>()
 const { locale, t } = useI18n({ useScope: 'global' })
 const weekStart = ref(mondayOf(todayInVietnam()))
-const activeSection = ref<'week' | 'history' | 'reminders'>('week')
+const activeSection = ref<'week' | 'history' | 'reminders' | 'emails'>('week')
 const remindersVisited = ref(false)
 const sidebarCollapsed = ref(window.matchMedia('(max-width: 700px)').matches)
 const selectedPerson = ref('')
@@ -257,6 +258,12 @@ function showReminders() {
   closeDetail()
 }
 
+function showEmails() {
+  if (activeSection.value === 'emails' && !selectedScheduleId.value) return
+  activeSection.value = 'emails'
+  closeDetail()
+}
+
 function closeDetail() {
   editingSchedule.value = false
   ++detailRequest
@@ -312,6 +319,17 @@ onMounted(() => { void load() })
           </svg>
           <span class="week-nav-label">{{ t('reminders.title') }}</span>
         </button>
+        <button class="week-nav-item" :class="{ 'week-nav-active': activeSection === 'emails' }" type="button"
+          :aria-current="activeSection === 'emails' ? 'page' : undefined"
+          :aria-label="sidebarCollapsed ? t('emailAudit.title') : undefined"
+          :title="sidebarCollapsed ? t('emailAudit.title') : undefined"
+          :disabled="creatingSchedule || editingSchedule || cancellingSchedule" @click="showEmails">
+          <svg class="week-nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="3" y="5" width="18" height="14" rx="2" /><path d="m3 7 9 6 9-6" />
+          </svg>
+          <span class="week-nav-label">{{ t('emailAudit.title') }}</span>
+        </button>
 
       </nav>
       <div class="week-sidebar-bottom">
@@ -335,7 +353,7 @@ onMounted(() => { void load() })
 
     <div class="week-area">
       <header class="week-topbar">
-        <span>{{ t('week.personal') }} &nbsp;/&nbsp; <strong>{{ t(creatingSchedule ? 'create.title' : editingSchedule ? 'edit.title' : selectedScheduleId ? 'detail.title' : activeSection === 'history' ? 'history.title' : activeSection === 'reminders' ? 'reminders.title' : 'week.title') }}</strong></span>
+        <span>{{ t('week.personal') }} &nbsp;/&nbsp; <strong>{{ t(creatingSchedule ? 'create.title' : editingSchedule ? 'edit.title' : selectedScheduleId ? 'detail.title' : activeSection === 'history' ? 'history.title' : activeSection === 'reminders' ? 'reminders.title' : activeSection === 'emails' ? 'emailAudit.title' : 'week.title') }}</strong></span>
         <span>{{ t('week.timezone') }}</span>
       </header>
       <main class="week-content">
@@ -349,13 +367,16 @@ onMounted(() => { void load() })
           @session-updated="emit('sessionUpdated', $event)" @session-expired="emit('sessionExpired')" />
         <ScheduleDetailView v-else-if="selectedScheduleId" :schedule="selectedSchedule" :loading="detailLoading"
           :error-key="detailErrorKey" :cancelling="cancellingSchedule" :cancel-error-key="cancelErrorKey"
-          :back-key="activeSection === 'history' ? 'history.back' : 'detail.back'"
+          :back-key="activeSection === 'history' ? 'history.back' : activeSection === 'emails' ? 'emailAudit.back' : 'detail.back'"
           @back="closeDetail" @retry="loadDetail" @edit="openEdit" @cancel-confirmed="confirmCancel" />
         <HistoryView v-if="activeSection === 'history'" v-show="!selectedScheduleId" :session="props.session"
           @open-detail="openDetail" @session-updated="emit('sessionUpdated', $event)"
           @session-expired="emit('sessionExpired')" />
         <ReminderSettingsView v-if="remindersVisited" v-show="activeSection === 'reminders'" :session="props.session"
           @session-updated="emit('sessionUpdated', $event)" @session-expired="emit('sessionExpired')" />
+        <EmailAuditView v-if="activeSection === 'emails'" v-show="!selectedScheduleId" :session="props.session"
+          @open-schedule="openDetail" @session-updated="emit('sessionUpdated', $event)"
+          @session-expired="emit('sessionExpired')" />
         <template v-if="activeSection === 'week' && !creatingSchedule && !selectedScheduleId">
         <div class="week-heading">
           <div><h1>{{ t('week.title') }}</h1><p>{{ t('week.subtitle') }}</p></div>
