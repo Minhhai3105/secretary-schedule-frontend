@@ -90,26 +90,26 @@ onMounted(() => { void load() })
 </script>
 
 <template>
-  <section class="col-12 col-xl-10 p-0">
-    <header class="mb-4">
-      <h1 class="h3 mb-1">{{ t('history.title') }}</h1>
-      <p class="text-secondary mb-0">{{ t('history.subtitle') }}</p>
+  <section class="workspace-page">
+    <header class="workspace-header">
+      <h1>{{ t('history.title') }}</h1>
+      <p>{{ t('history.subtitle') }}</p>
     </header>
 
-    <form class="row g-2 align-items-end mb-3" role="search" @submit.prevent="search">
-      <div class="col-12 col-md-8">
+    <form class="workspace-filter-bar" role="search" @submit.prevent="search">
+      <div class="flex-grow-1">
         <label class="form-label" for="history-search">{{ t('history.searchLabel') }}</label>
         <input id="history-search" v-model="queryInput" class="form-control" maxlength="255"
           :placeholder="t('history.searchPlaceholder')" />
       </div>
-      <div class="col-12 col-md-auto">
+      <div>
         <button class="btn btn-primary" type="submit" :disabled="loading">{{ t('history.search') }}</button>
       </div>
     </form>
 
-    <div class="d-flex gap-2 flex-wrap mb-3" role="group" :aria-label="t('history.filterLabel')">
-      <button v-for="type in filters" :key="type" class="btn btn-sm"
-        :class="selectedType === type ? 'btn-primary' : 'btn-outline-secondary'"
+    <div class="workspace-pills" role="group" :aria-label="t('history.filterLabel')">
+      <button v-for="type in filters" :key="type" class="workspace-pill"
+        :class="{ 'workspace-pill-active': selectedType === type }"
         type="button" :aria-pressed="selectedType === type" :disabled="loading" @click="setType(type)">
         {{ t(`history.${type}`) }}
       </button>
@@ -121,18 +121,18 @@ onMounted(() => { void load() })
       <button class="btn btn-link btn-sm" type="button" @click="load">{{ t('common.retry') }}</button>
     </div>
     <template v-else-if="result">
-      <p class="text-secondary small">{{ result.paging.total === 1 ? t('history.oneResult') : t('history.total', { count: result.paging.total }) }}</p>
-      <p v-if="result.schedules.length === 0" class="alert alert-light" role="status">{{ t('history.empty') }}</p>
-      <div v-else class="list-group">
+      <p class="workspace-meta mb-2">{{ result.paging.total === 1 ? t('history.oneResult') : t('history.total', { count: result.paging.total }) }}</p>
+      <p v-if="result.schedules.length === 0" class="week-empty-banner" role="status">{{ t('history.empty') }}</p>
+      <div v-else class="workspace-list">
         <button v-for="schedule in result.schedules" :key="schedule.id" type="button"
-          class="list-group-item list-group-item-action p-3" @click="emit('openDetail', schedule.id)">
+          class="workspace-list-item" @click="emit('openDetail', schedule.id)">
           <span class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
             <strong>{{ schedule.title }}</strong>
-            <span class="badge" :class="schedule.status === 'cancelled' ? 'text-bg-danger' : 'text-bg-secondary'">
+            <span class="workspace-badge" :class="schedule.status === 'cancelled' ? 'workspace-badge-danger' : 'workspace-badge-neutral'">
               {{ t(`history.${schedule.status}`) }}
             </span>
           </span>
-          <small class="d-block text-secondary mt-2">
+          <small class="d-block workspace-meta mt-2">
             {{ dateLabel(schedule) }} · {{ vietnamTime(schedule.starts_at_utc) }} ·
             {{ schedule.related_person === 'Tôi' ? t('week.me') : schedule.related_person }}
           </small>

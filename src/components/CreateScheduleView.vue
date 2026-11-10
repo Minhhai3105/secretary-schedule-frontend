@@ -19,8 +19,9 @@ const emit = defineEmits<{
 const { t } = useI18n({ useScope: 'global' })
 const initialStart = typeof props.initialData?.starts_at_utc === 'string' ? props.initialData.starts_at_utc : ''
 const initialEnd = typeof props.initialData?.ends_at_utc === 'string' ? props.initialData.ends_at_utc : ''
+const initialDate = typeof props.initialData?.date === 'string' ? props.initialData.date : ''
 const title = ref(typeof props.initialData?.title === 'string' ? props.initialData.title : '')
-const date = ref(initialStart ? vietnamDate(initialStart) : todayInVietnam())
+const date = ref(initialStart ? vietnamDate(initialStart) : initialDate || todayInVietnam())
 const startTime = ref(initialStart ? vietnamTime(initialStart) : '')
 const endTime = ref(initialEnd ? vietnamTime(initialEnd) : '')
 const meetingMode = ref<'offline' | 'online'>(props.initialData?.meeting_mode === 'online' ? 'online' : 'offline')
@@ -36,7 +37,6 @@ const notes = ref(typeof props.initialData?.notes === 'string' ? props.initialDa
 const errorKey = ref('')
 const timeError = ref(false)
 const saving = ref(false)
-const createdSchedule = ref<Schedule | null>(null)
 
 function vietnamLocalToUtc(day: string, time: string): string | null {
   const value = new Date(`${day}T${time}:00+07:00`)
@@ -103,7 +103,7 @@ async function submit() {
       emit('sessionUpdated', renewed)
       result = await createSchedule(renewed.access_token, payload)
     }
-    createdSchedule.value = result
+    emit('created', result)
   } catch (cause) {
     if (cause instanceof ScheduleCreateError && cause.code === 'unauthorized') {
       emit('sessionExpired')
@@ -132,14 +132,7 @@ async function submit() {
       </button>
     </div>
 
-    <div v-if="createdSchedule" class="create-result" role="status">
-      <h2>{{ t('create.success') }}</h2>
-      <p>{{ t('create.successHint') }}</p>
-      <button class="btn btn-primary" type="button" @click="emit('created', createdSchedule)">{{ t('create.viewCreated') }}</button>
-      <button class="btn btn-outline-secondary" type="button" @click="createdSchedule = null">{{ t('create.backToForm') }}</button>
-    </div>
-
-    <form v-else class="create-form" novalidate @submit.prevent="submit">
+    <form class="create-form" novalidate @submit.prevent="submit">
       <fieldset :disabled="saving">
         <div class="mb-3">
           <label class="form-label" for="create-title">{{ t('create.titleLabel') }} *</label>

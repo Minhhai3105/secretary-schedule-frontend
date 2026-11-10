@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { AuthError, refreshSession, type LoginResult } from '../services/auth'
 import {
@@ -34,12 +34,21 @@ const sending = ref(false)
 const processing = ref(false)
 const sendErrorKey = ref('')
 const nowMs = ref(Date.now())
+const chatLogRef = ref<HTMLElement | null>(null)
 let expiryTimer: ReturnType<typeof setInterval> | undefined
+const starterKeys = ['chat.suggestions.today', 'chat.suggestions.week', 'chat.suggestions.create']
 const pendingProposal = computed(() => messages.value.some((item) =>
   item.proposal && item.proposalState === 'pending' && !isExpired(item.proposal)))
 
 function isExpired(proposal: ChatProposal): boolean {
   return Date.parse(proposal.expires_at_utc) <= nowMs.value
+}
+
+function scrollToBottom() {
+  void nextTick(() => {
+    const el = chatLogRef.value
+    if (el) el.scrollTop = el.scrollHeight
+  })
 }
 
 function dateTimeLabel(value: string): string {
@@ -107,6 +116,7 @@ async function send() {
   sending.value = true
   sendErrorKey.value = ''
   const history = messages.value.map(({ role, content }) => ({ role, content })).slice(-5)
+  scrollToBottom()
   try {
     const response = await authorized((token) => sendChatMessage(token, message, history))
     let targetSchedule: Schedule | null = null
@@ -120,6 +130,7 @@ async function send() {
       targetSchedule,
     })
     draft.value = ''
+    scrollToBottom()
   } catch (cause) {
     if (cause instanceof ChatError && cause.code === 'unauthorized') {
       emit('sessionExpired')
@@ -133,6 +144,19 @@ async function send() {
     }
   } finally {
     sending.value = false
+  }
+}
+
+function useStarterPrompt(promptKey: string) {
+  if (sending.value || processing.value || pendingProposal.value) return
+  draft.value = t(promptKey)
+  void send()
+}
+
+function onMessageKeydown(event: KeyboardEvent) {
+  if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
+    event.preventDefault()
+    void send()
   }
 }
 
@@ -166,6 +190,7 @@ async function processProposal(item: Message, action: 'confirm' | 'cancel') {
     }
   } finally {
     processing.value = false
+    scrollToBottom()
   }
 }
 
@@ -218,19 +243,27 @@ onUnmounted(() => { if (expiryTimer) clearInterval(expiryTimer) })
 </script>
 
 <template>
-  <section class="col-12 col-xl-9 p-0">
-    <header class="mb-4">
-      <h1 class="h3 mb-1">{{ t('chat.title') }}</h1>
-      <p class="text-secondary mb-0">{{ t('chat.subtitle') }}</p>
+  <section class="workspace-page">
+    <header class="workspace-header">
+      <h1>{{ t('chat.title') }}</h1>
+      <p>{{ t('chat.subtitle') }}</p>
     </header>
     <p class="alert alert-info small" role="note">{{ t('chat.privacy') }}</p>
 
-    <div class="card p-3 p-md-4 mb-3" aria-live="polite">
-      <p v-if="messages.length === 0" class="text-secondary mb-0">{{ t('chat.empty') }}</p>
-      <div v-for="(item, index) in messages" :key="index" class="d-flex mb-3"
+    <div ref="chatLogRef" class="workspace-chat-log" aria-live="polite">
+      <div v-if="messages.length === 0" class="workspace-chat-empty">
+        <p class="mb-0">{{ t('chat.empty') }}</p>
+        <div class="workspace-chat-chips">
+          <button v-for="promptKey in starterKeys" :key="promptKey" class="workspace-chat-chip"
+            type="button" :disabled="sending || processing || pendingProposal"
+            @click="useStarterPrompt(promptKey)">
+            {{ t(promptKey) }}
+          </button>
+        </div>
+      </div>
+      <div v-for="(item, index) in messages" :key="index" class="d-flex"
         :class="item.role === 'user' ? 'justify-content-end' : 'justify-content-start'">
-        <div class="rounded p-3" :class="item.role === 'user' ? 'bg-primary text-white' : 'bg-light border'"
-          style="max-width: 85%; overflow-wrap: anywhere">
+        <div :class="item.role === 'user' ? 'workspace-chat-bubble-user' : 'workspace-chat-bubble-assistant'">
           <p class="mb-0" style="white-space: pre-wrap">{{ item.content }}</p>
           <div v-if="item.schedules?.length" class="mt-3">
             <h2 class="h6">{{ t('chat.relatedSchedules') }}</h2>
@@ -244,9 +277,9 @@ onUnmounted(() => { if (expiryTimer) clearInterval(expiryTimer) })
               </li>
             </ul>
           </div>
-          <div v-if="item.proposal" class="card mt-3 p-3 text-body">
+          <div v-if="item.proposal" class="workspace-proposal-card">
             <h2 class="h6">{{ t(`chat.action.${item.proposal.action}`) }}</h2>
-            <p v-if="item.targetSchedule" class="small text-secondary mb-2">
+            <p v-if="item.targetSchedule" class="small workspace-meta mb-2">
               {{ t('chat.targetSchedule') }}: <strong>{{ item.targetSchedule.title }}</strong>
               ({{ dateTimeLabel(item.targetSchedule.starts_at_utc) }})
             </p>
@@ -255,7 +288,7 @@ onUnmounted(() => { if (expiryTimer) clearInterval(expiryTimer) })
                 <dt class="col-sm-5">{{ field.label }}</dt>
                 <dd class="col-sm-7 text-break">
                   <template v-if="field.oldValue !== undefined">
-                    <span class="text-secondary">{{ t('chat.oldValue') }}: {{ field.oldValue }}</span>
+                    <span class="workspace-meta">{{ t('chat.oldValue') }}: {{ field.oldValue }}</span>
                     <span class="mx-1">→</span>
                     <strong>{{ t('chat.newValue') }}: {{ field.value }}</strong>
                   </template>
@@ -263,10 +296,10 @@ onUnmounted(() => { if (expiryTimer) clearInterval(expiryTimer) })
                 </dd>
               </template>
             </dl>
-            <p v-if="item.proposal.action !== 'create'" class="small text-secondary text-break mb-2">
+            <p v-if="item.proposal.action !== 'create'" class="small workspace-meta text-break mb-2">
               {{ t('chat.scheduleId') }}: {{ item.proposal.schedule_id }}
             </p>
-            <p class="small text-secondary mb-2">{{ t('chat.expiresAt') }}: {{ dateTimeLabel(item.proposal.expires_at_utc) }}</p>
+            <p class="small workspace-meta mb-2">{{ t('chat.expiresAt') }}: {{ dateTimeLabel(item.proposal.expires_at_utc) }}</p>
             <p v-if="item.proposalErrorKey" class="alert alert-warning small" role="alert">{{ t(item.proposalErrorKey) }}</p>
             <div v-if="item.proposalState === 'confirmed'" class="alert alert-success small mb-0 d-flex align-items-center justify-content-between gap-2 flex-wrap" role="status">
               <span>{{ t('chat.confirmed', { title: item.confirmedSchedule?.title ?? '' }) }}</span>
@@ -275,8 +308,8 @@ onUnmounted(() => { if (expiryTimer) clearInterval(expiryTimer) })
                 {{ t('chat.openSchedule') }}
               </button>
             </div>
-            <p v-else-if="item.proposalState === 'cancelled'" class="text-secondary small mb-0">{{ t('chat.cancelled') }}</p>
-            <p v-else-if="item.proposalState === 'pending' && isExpired(item.proposal)" class="text-secondary small mb-0">{{ t('chat.expired') }}</p>
+            <p v-else-if="item.proposalState === 'cancelled'" class="workspace-meta small mb-0">{{ t('chat.cancelled') }}</p>
+            <p v-else-if="item.proposalState === 'pending' && isExpired(item.proposal)" class="workspace-meta small mb-0">{{ t('chat.expired') }}</p>
             <div v-else-if="item.proposalState === 'pending'" class="d-flex gap-2 flex-wrap">
               <button class="btn btn-primary btn-sm" type="button" :disabled="processing" @click="processProposal(item, 'confirm')">
                 {{ t(processing ? 'chat.processing' : 'chat.confirm') }}
@@ -292,16 +325,18 @@ onUnmounted(() => { if (expiryTimer) clearInterval(expiryTimer) })
           </div>
         </div>
       </div>
-      <p v-if="sending" class="text-secondary mb-0" role="status">{{ t('chat.waiting') }}</p>
+      <p v-if="sending" class="workspace-meta mb-0" role="status">{{ t('chat.waiting') }}</p>
     </div>
 
     <p v-if="pendingProposal" class="alert alert-light small" role="status">{{ t('chat.resolveProposal') }}</p>
     <div v-if="sendErrorKey" class="alert alert-warning" role="alert">{{ t(sendErrorKey) }}</div>
-    <form @submit.prevent="send">
-      <label class="form-label" for="chat-message">{{ t('chat.messageLabel') }}</label>
+    <form class="workspace-card" @submit.prevent="send">
+      <label class="form-label fw-semibold" for="chat-message">{{ t('chat.messageLabel') }}</label>
       <textarea id="chat-message" v-model="draft" class="form-control" rows="3" maxlength="4000"
-        :placeholder="t('chat.placeholder')" :disabled="sending || processing || pendingProposal" />
-      <div class="d-flex justify-content-end mt-2">
+        :placeholder="t('chat.placeholder')" :disabled="sending || processing || pendingProposal"
+        @keydown="onMessageKeydown" />
+      <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap mt-2">
+        <small class="workspace-meta">{{ t('chat.enterHint') }}</small>
         <button class="btn btn-primary" type="submit" :disabled="sending || processing || pendingProposal || !draft.trim()">
           {{ t(sending ? 'chat.sending' : 'chat.send') }}
         </button>
