@@ -4,12 +4,21 @@ import { useI18n } from 'vue-i18n'
 import LanguageSwitch from './components/LanguageSwitch.vue'
 import LoginView from './views/LoginView.vue'
 import RegisterView from './views/RegisterView.vue'
+import ForgotPasswordView from './views/ForgotPasswordView.vue'
+import ResetPasswordView from './views/ResetPasswordView.vue'
 import WeeklyScheduleView from './views/WeeklyScheduleView.vue'
 import { AuthError, logout, refreshSession, type LoginResult } from './services/auth'
 
 const { locale, t } = useI18n({ useScope: 'global' })
 const session = ref<LoginResult | null>(null)
-const authScreen = ref<'login' | 'register'>('login')
+const initialPath = window.location.pathname
+const resetToken = initialPath === '/reset-password' ? new URLSearchParams(window.location.search).get('token') ?? '' : ''
+if (initialPath === '/reset-password' && window.location.search) {
+  window.history.replaceState(window.history.state, '', '/reset-password')
+}
+const authScreen = ref<'login' | 'register' | 'forgot' | 'reset'>(
+  initialPath === '/reset-password' ? 'reset' : initialPath === '/forgot-password' ? 'forgot' : 'login',
+)
 const restoring = ref(true)
 const restoreError = ref('')
 const logoutError = ref('')
@@ -39,6 +48,10 @@ function onSessionExpired() {
   authScreen.value = 'login'
 }
 
+function goToForgot() {
+  window.location.assign('/forgot-password')
+}
+
 async function signOut() {
   if (loggingOut.value) return
   loggingOut.value = true
@@ -53,7 +66,10 @@ async function signOut() {
   }
 }
 
-onMounted(restore)
+onMounted(() => {
+  if (authScreen.value === 'forgot' || authScreen.value === 'reset') restoring.value = false
+  else void restore()
+})
 </script>
 
 <template>
@@ -65,8 +81,11 @@ onMounted(restore)
     <p class="alert alert-warning" role="alert">{{ t(restoreError) }}</p>
     <button class="btn btn-primary" type="button" @click="restore">{{ t('common.retry') }}</button>
   </main>
+  <ResetPasswordView v-else-if="authScreen === 'reset'" :token="resetToken" />
+  <ForgotPasswordView v-else-if="authScreen === 'forgot'" />
   <template v-else-if="!session">
-    <LoginView v-if="authScreen === 'login'" @authenticated="onAuthenticated" @register-requested="authScreen = 'register'" />
+    <LoginView v-if="authScreen === 'login'" @authenticated="onAuthenticated"
+      @register-requested="authScreen = 'register'" @forgot-requested="goToForgot" />
     <RegisterView v-else @login-requested="authScreen = 'login'" />
   </template>
   <WeeklyScheduleView v-else :session="session" :logging-out="loggingOut" :logout-error="logoutError"
