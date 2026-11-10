@@ -7,6 +7,7 @@ import ScheduleDetailView from '../components/ScheduleDetailView.vue'
 import CreateScheduleView from '../components/CreateScheduleView.vue'
 import EditScheduleView from '../components/EditScheduleView.vue'
 import HistoryView from '../components/HistoryView.vue'
+import ReminderSettingsView from '../components/ReminderSettingsView.vue'
 import { mondayOf, shiftDate, todayInVietnam, vietnamDate, vietnamTime, weekDates } from '../utils/week'
 
 const props = defineProps<{ session: LoginResult; loggingOut: boolean; logoutError: string }>()
@@ -17,7 +18,8 @@ const emit = defineEmits<{
 }>()
 const { locale, t } = useI18n({ useScope: 'global' })
 const weekStart = ref(mondayOf(todayInVietnam()))
-const activeSection = ref<'week' | 'history'>('week')
+const activeSection = ref<'week' | 'history' | 'reminders'>('week')
+const remindersVisited = ref(false)
 const sidebarCollapsed = ref(window.matchMedia('(max-width: 700px)').matches)
 const selectedPerson = ref('')
 const schedules = ref<Schedule[]>([])
@@ -248,6 +250,13 @@ function showHistory() {
   closeDetail()
 }
 
+function showReminders() {
+  if (activeSection.value === 'reminders') return
+  remindersVisited.value = true
+  activeSection.value = 'reminders'
+  closeDetail()
+}
+
 function closeDetail() {
   editingSchedule.value = false
   ++detailRequest
@@ -292,6 +301,17 @@ onMounted(() => { void load() })
           </svg>
           <span class="week-nav-label">{{ t('history.title') }}</span>
         </button>
+        <button class="week-nav-item" :class="{ 'week-nav-active': activeSection === 'reminders' }" type="button"
+          :aria-current="activeSection === 'reminders' ? 'page' : undefined"
+          :aria-label="sidebarCollapsed ? t('reminders.title') : undefined"
+          :title="sidebarCollapsed ? t('reminders.title') : undefined"
+          :disabled="creatingSchedule || editingSchedule || cancellingSchedule" @click="showReminders">
+          <svg class="week-nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" />
+          </svg>
+          <span class="week-nav-label">{{ t('reminders.title') }}</span>
+        </button>
 
       </nav>
       <div class="week-sidebar-bottom">
@@ -315,7 +335,7 @@ onMounted(() => { void load() })
 
     <div class="week-area">
       <header class="week-topbar">
-        <span>{{ t('week.personal') }} &nbsp;/&nbsp; <strong>{{ t(creatingSchedule ? 'create.title' : editingSchedule ? 'edit.title' : selectedScheduleId ? 'detail.title' : activeSection === 'history' ? 'history.title' : 'week.title') }}</strong></span>
+        <span>{{ t('week.personal') }} &nbsp;/&nbsp; <strong>{{ t(creatingSchedule ? 'create.title' : editingSchedule ? 'edit.title' : selectedScheduleId ? 'detail.title' : activeSection === 'history' ? 'history.title' : activeSection === 'reminders' ? 'reminders.title' : 'week.title') }}</strong></span>
         <span>{{ t('week.timezone') }}</span>
       </header>
       <main class="week-content">
@@ -334,6 +354,8 @@ onMounted(() => { void load() })
         <HistoryView v-if="activeSection === 'history'" v-show="!selectedScheduleId" :session="props.session"
           @open-detail="openDetail" @session-updated="emit('sessionUpdated', $event)"
           @session-expired="emit('sessionExpired')" />
+        <ReminderSettingsView v-if="remindersVisited" v-show="activeSection === 'reminders'" :session="props.session"
+          @session-updated="emit('sessionUpdated', $event)" @session-expired="emit('sessionExpired')" />
         <template v-if="activeSection === 'week' && !creatingSchedule && !selectedScheduleId">
         <div class="week-heading">
           <div><h1>{{ t('week.title') }}</h1><p>{{ t('week.subtitle') }}</p></div>
