@@ -70,3 +70,35 @@ export async function logout(): Promise<void> {
 
   if (!response.ok) throw new Error('Đăng xuất chưa thành công. Vui lòng thử lại.')
 }
+
+export interface RegisterRequest {
+  name: string
+  email: string
+  password: string
+}
+
+export class RegisterError extends Error {}
+
+export async function register(payload: RegisterRequest): Promise<AuthUser> {
+  let response: Response
+
+  try {
+    response = await fetch(`${apiBaseUrl}/api/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+  } catch {
+    throw new RegisterError('Không thể kết nối máy chủ. Vui lòng thử lại.')
+  }
+
+  if (response.status === 409) {
+    throw new RegisterError('Email này đã được đăng ký. Vui lòng dùng email khác.')
+  }
+
+  if (!response.ok) {
+    throw new RegisterError('Đăng ký chưa thành công. Vui lòng kiểm tra thông tin và thử lại.')
+  }
+
+  return (await response.json()) as AuthUser
+}

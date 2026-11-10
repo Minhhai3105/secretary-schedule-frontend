@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import LoginView from './views/LoginView.vue'
+import RegisterView from './views/RegisterView.vue'
 import { logout, refreshSession, type LoginResult } from './services/auth'
 
 const session = ref<LoginResult | null>(null)
+const authScreen = ref<'login' | 'register'>('login')
 const restoring = ref(true)
 const restoreError = ref('')
 const logoutError = ref('')
@@ -51,7 +53,10 @@ onMounted(restore)
     <p class="alert alert-warning" role="alert">{{ restoreError }}</p>
     <button class="btn btn-primary" type="button" @click="restore">Thử lại</button>
   </main>
-  <LoginView v-else-if="!session" @authenticated="onAuthenticated" />
+  <template v-else-if="!session">
+    <LoginView v-if="authScreen === 'login'" @authenticated="onAuthenticated" @register-requested="authScreen = 'register'" />
+    <RegisterView v-else @login-requested="authScreen = 'login'" />
+  </template>
   <main v-else class="container py-5">
     <div class="d-flex justify-content-between align-items-center gap-3">
       <div>

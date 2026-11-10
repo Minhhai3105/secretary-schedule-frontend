@@ -2,7 +2,7 @@
 import { ref } from 'vue'
 import { login, LoginError, type LoginResult } from '../services/auth'
 
-const emit = defineEmits<{ authenticated: [result: LoginResult] }>()
+const emit = defineEmits<{ authenticated: [result: LoginResult]; registerRequested: [] }>()
 const email = ref('')
 const password = ref('')
 const error = ref('')
@@ -67,6 +67,7 @@ async function submit() {
           <button class="btn btn-primary w-100" type="submit" :disabled="loading">
             {{ loading ? 'Đang đăng nhập…' : 'Đăng nhập' }}
           </button>
+          <p class="text-center mt-3 mb-0">Chưa có tài khoản? <button class="btn btn-link p-0 align-baseline" type="button" @click="emit('registerRequested')">Đăng ký</button></p>
           <p v-if="error" class="alert alert-danger mt-4" role="alert" aria-live="polite">{{ error }}</p>
         </form>
       </div>
