@@ -19,7 +19,7 @@ export const i18n = createI18n({
   messages: {
     vi: {
       language: { switchTo: 'Chuyển sang tiếng Anh' },
-      common: { email: 'Email', emailPlaceholder: 'ban@example.com', password: 'Mật khẩu', retry: 'Thử lại' },
+      common: { email: 'Email', emailPlaceholder: "ban{'@'}example.com", password: 'Mật khẩu', retry: 'Thử lại' },
       intro: {
         brand: 'Lịch trình',
         headline: 'Chủ động mỗi ngày.',
@@ -109,7 +109,7 @@ export const i18n = createI18n({
     },
     en: {
       language: { switchTo: 'Switch to Vietnamese' },
-      common: { email: 'Email', emailPlaceholder: 'you@example.com', password: 'Password', retry: 'Try again' },
+      common: { email: 'Email', emailPlaceholder: "you{'@'}example.com", password: 'Password', retry: 'Try again' },
       intro: {
         brand: 'Schedule',
         headline: 'Stay ahead every day.',
