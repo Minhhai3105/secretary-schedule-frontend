@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import PasswordField from '../components/PasswordField.vue'
 import { register, RegisterError } from '../services/auth'
 
 const emit = defineEmits<{ loginRequested: [] }>()
@@ -84,14 +85,12 @@ async function submit() {
                 placeholder="ban@example.com" maxlength="255" required :disabled="loading" />
             </div>
             <div class="mb-3">
-              <label class="form-label" for="register-password">Mật khẩu</label>
-              <input id="register-password" v-model="password" class="form-control" type="password"
-                autocomplete="new-password" minlength="8" maxlength="128" required :disabled="loading" />
+              <PasswordField id="register-password" v-model="password" label="Mật khẩu"
+                autocomplete="new-password" :minlength="8" :maxlength="128" :disabled="loading" />
             </div>
             <div class="mb-4">
-              <label class="form-label" for="register-confirm">Nhập lại mật khẩu</label>
-              <input id="register-confirm" v-model="confirmPassword" class="form-control" type="password"
-                autocomplete="new-password" required :disabled="loading" />
+              <PasswordField id="register-confirm" v-model="confirmPassword" label="Nhập lại mật khẩu"
+                autocomplete="new-password" :disabled="loading" />
             </div>
             <button class="btn btn-primary w-100" type="submit" :disabled="loading">
               {{ loading ? 'Đang đăng ký…' : 'Đăng ký' }}

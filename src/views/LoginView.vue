@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import PasswordField from '../components/PasswordField.vue'
 import { login, LoginError, type LoginResult } from '../services/auth'
 
 const emit = defineEmits<{ authenticated: [result: LoginResult]; registerRequested: [] }>()
@@ -60,9 +61,8 @@ async function submit() {
               autocomplete="email" placeholder="ban@example.com" required :disabled="loading" />
           </div>
           <div class="mb-4">
-            <label class="form-label" for="password">Mật khẩu</label>
-            <input id="password" v-model="password" class="form-control" type="password"
-              autocomplete="current-password" required :disabled="loading" />
+            <PasswordField id="password" v-model="password" label="Mật khẩu"
+              autocomplete="current-password" :disabled="loading" />
           </div>
           <button class="btn btn-primary w-100" type="submit" :disabled="loading">
             {{ loading ? 'Đang đăng nhập…' : 'Đăng nhập' }}
