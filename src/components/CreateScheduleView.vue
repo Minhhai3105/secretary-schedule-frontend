@@ -3,9 +3,13 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { AuthError, refreshSession, type LoginResult } from '../services/auth'
 import { createSchedule, ScheduleCreateError, type Schedule, type ScheduleCreatePayload } from '../services/schedules'
-import { todayInVietnam } from '../utils/week'
+import { todayInVietnam, vietnamDate, vietnamTime } from '../utils/week'
 
-const props = defineProps<{ session: LoginResult; relatedPeople: string[] }>()
+const props = defineProps<{
+  session: LoginResult
+  relatedPeople: string[]
+  initialData?: Record<string, unknown> | null
+}>()
 const emit = defineEmits<{
   cancel: []
   created: [schedule: Schedule]
@@ -13,16 +17,22 @@ const emit = defineEmits<{
   sessionExpired: []
 }>()
 const { t } = useI18n({ useScope: 'global' })
-const title = ref('')
-const date = ref(todayInVietnam())
-const startTime = ref('')
-const endTime = ref('')
-const meetingMode = ref<'offline' | 'online'>('offline')
-const location = ref('')
-const meetingUrl = ref('')
-const relatedPerson = ref('Tôi')
-const preparation = ref('')
-const notes = ref('')
+const initialStart = typeof props.initialData?.starts_at_utc === 'string' ? props.initialData.starts_at_utc : ''
+const initialEnd = typeof props.initialData?.ends_at_utc === 'string' ? props.initialData.ends_at_utc : ''
+const title = ref(typeof props.initialData?.title === 'string' ? props.initialData.title : '')
+const date = ref(initialStart ? vietnamDate(initialStart) : todayInVietnam())
+const startTime = ref(initialStart ? vietnamTime(initialStart) : '')
+const endTime = ref(initialEnd ? vietnamTime(initialEnd) : '')
+const meetingMode = ref<'offline' | 'online'>(props.initialData?.meeting_mode === 'online' ? 'online' : 'offline')
+const location = ref(typeof props.initialData?.location === 'string' ? props.initialData.location : '')
+const meetingUrl = ref(typeof props.initialData?.meeting_url === 'string' ? props.initialData.meeting_url : '')
+const relatedPerson = ref(
+  typeof props.initialData?.related_person === 'string' && props.initialData.related_person.trim()
+    ? props.initialData.related_person
+    : 'Tôi',
+)
+const preparation = ref(typeof props.initialData?.preparation === 'string' ? props.initialData.preparation : '')
+const notes = ref(typeof props.initialData?.notes === 'string' ? props.initialData.notes : '')
 const errorKey = ref('')
 const timeError = ref(false)
 const saving = ref(false)

@@ -5,7 +5,12 @@ import { AuthError, refreshSession, type LoginResult } from '../services/auth'
 import { ScheduleUpdateError, updateSchedule, type Schedule, type ScheduleUpdatePayload } from '../services/schedules'
 import { vietnamDate, vietnamTime } from '../utils/week'
 
-const props = defineProps<{ session: LoginResult; schedule: Schedule; relatedPeople: string[] }>()
+const props = defineProps<{
+  session: LoginResult
+  schedule: Schedule
+  relatedPeople: string[]
+  initialOverrides?: Record<string, unknown> | null
+}>()
 const emit = defineEmits<{
   cancel: []
   saved: [schedule: Schedule]
@@ -14,17 +19,45 @@ const emit = defineEmits<{
   sessionExpired: []
 }>()
 const { t } = useI18n({ useScope: 'global' })
-const title = ref(props.schedule.title)
-const date = ref(vietnamDate(props.schedule.starts_at_utc))
-const startTime = ref(vietnamTime(props.schedule.starts_at_utc))
-const endDate = ref(props.schedule.ends_at_utc ? vietnamDate(props.schedule.ends_at_utc) : date.value)
-const endTime = ref(props.schedule.ends_at_utc ? vietnamTime(props.schedule.ends_at_utc) : '')
-const meetingMode = ref(props.schedule.meeting_mode)
-const location = ref(props.schedule.location ?? '')
-const meetingUrl = ref(props.schedule.meeting_url ?? '')
-const relatedPerson = ref(props.schedule.related_person)
-const preparation = ref(props.schedule.preparation ?? '')
-const notes = ref(props.schedule.notes ?? '')
+const ov = props.initialOverrides ?? null
+const initialStartsAt = typeof ov?.starts_at_utc === 'string' ? ov.starts_at_utc : props.schedule.starts_at_utc
+const hasEndsAtOverride = ov !== null && Object.hasOwn(ov, 'ends_at_utc')
+const initialEndsAt = hasEndsAtOverride
+  ? (typeof ov?.ends_at_utc === 'string' ? ov.ends_at_utc : null)
+  : props.schedule.ends_at_utc
+const title = ref(typeof ov?.title === 'string' ? ov.title : props.schedule.title)
+const date = ref(vietnamDate(initialStartsAt))
+const startTime = ref(vietnamTime(initialStartsAt))
+const endDate = ref(initialEndsAt ? vietnamDate(initialEndsAt) : date.value)
+const endTime = ref(initialEndsAt ? vietnamTime(initialEndsAt) : '')
+const meetingMode = ref<'offline' | 'online'>(
+  ov?.meeting_mode === 'online' || ov?.meeting_mode === 'offline' ? ov.meeting_mode : props.schedule.meeting_mode,
+)
+const location = ref(
+  ov && Object.hasOwn(ov, 'location')
+    ? (typeof ov.location === 'string' ? ov.location : '')
+    : (props.schedule.location ?? ''),
+)
+const meetingUrl = ref(
+  ov && Object.hasOwn(ov, 'meeting_url')
+    ? (typeof ov.meeting_url === 'string' ? ov.meeting_url : '')
+    : (props.schedule.meeting_url ?? ''),
+)
+const relatedPerson = ref(
+  typeof ov?.related_person === 'string' && ov.related_person.trim()
+    ? ov.related_person
+    : props.schedule.related_person,
+)
+const preparation = ref(
+  ov && Object.hasOwn(ov, 'preparation')
+    ? (typeof ov.preparation === 'string' ? ov.preparation : '')
+    : (props.schedule.preparation ?? ''),
+)
+const notes = ref(
+  ov && Object.hasOwn(ov, 'notes')
+    ? (typeof ov.notes === 'string' ? ov.notes : '')
+    : (props.schedule.notes ?? ''),
+)
 const errorKey = ref('')
 const timeError = ref(false)
 const saving = ref(false)

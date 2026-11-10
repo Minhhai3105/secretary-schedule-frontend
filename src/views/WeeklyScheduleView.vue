@@ -9,6 +9,7 @@ import EditScheduleView from '../components/EditScheduleView.vue'
 import HistoryView from '../components/HistoryView.vue'
 import ReminderSettingsView from '../components/ReminderSettingsView.vue'
 import EmailAuditView from '../components/EmailAuditView.vue'
+import ChatView from '../components/ChatView.vue'
 import { mondayOf, shiftDate, todayInVietnam, vietnamDate, vietnamTime, weekDates } from '../utils/week'
 
 const props = defineProps<{ session: LoginResult; loggingOut: boolean; logoutError: string }>()
@@ -19,8 +20,9 @@ const emit = defineEmits<{
 }>()
 const { locale, t } = useI18n({ useScope: 'global' })
 const weekStart = ref(mondayOf(todayInVietnam()))
-const activeSection = ref<'week' | 'history' | 'reminders' | 'emails'>('week')
+const activeSection = ref<'week' | 'history' | 'reminders' | 'emails' | 'chat'>('week')
 const remindersVisited = ref(false)
+const chatVisited = ref(false)
 const sidebarCollapsed = ref(window.matchMedia('(max-width: 700px)').matches)
 const selectedPerson = ref('')
 const schedules = ref<Schedule[]>([])
@@ -28,7 +30,9 @@ const relatedPeople = ref<string[]>([])
 const loading = ref(false)
 const errorKey = ref('')
 const creatingSchedule = ref(false)
+const createInitialData = ref<Record<string, unknown> | null>(null)
 const editingSchedule = ref(false)
+const editInitialOverrides = ref<Record<string, unknown> | null>(null)
 const selectedScheduleId = ref<string | null>(null)
 const selectedSchedule = ref<Schedule | null>(null)
 const detailLoading = ref(false)
@@ -170,9 +174,20 @@ async function loadDetail() {
 function showCreatedSchedule(schedule: Schedule) {
   weekStart.value = mondayOf(vietnamDate(schedule.starts_at_utc))
   selectedPerson.value = ''
+  createInitialData.value = null
   creatingSchedule.value = false
   openDetail(schedule.id)
   void load()
+}
+
+function openCreateFromChat(initialData: Record<string, unknown>) {
+  createInitialData.value = initialData
+  creatingSchedule.value = true
+}
+
+function cancelCreateSchedule() {
+  createInitialData.value = null
+  creatingSchedule.value = false
 }
 
 function openDetail(id: string) {
@@ -181,11 +196,27 @@ function openDetail(id: string) {
 }
 
 function openEdit() {
-  if (selectedSchedule.value?.status === 'upcoming') editingSchedule.value = true
+  if (selectedSchedule.value?.status === 'upcoming') {
+    editInitialOverrides.value = null
+    editingSchedule.value = true
+  }
+}
+
+function openEditFromChat(schedule: Schedule, overrides: Record<string, unknown>) {
+  selectedScheduleId.value = schedule.id
+  selectedSchedule.value = schedule
+  editInitialOverrides.value = overrides
+  editingSchedule.value = true
+}
+
+function cancelEditSchedule() {
+  editInitialOverrides.value = null
+  editingSchedule.value = false
 }
 
 function saveEditedSchedule(schedule: Schedule) {
   selectedSchedule.value = schedule
+  editInitialOverrides.value = null
   editingSchedule.value = false
   weekStart.value = mondayOf(vietnamDate(schedule.starts_at_utc))
   selectedPerson.value = ''
@@ -193,6 +224,7 @@ function saveEditedSchedule(schedule: Schedule) {
 }
 
 function reloadAfterEdit() {
+  editInitialOverrides.value = null
   editingSchedule.value = false
   void loadDetail()
 }
@@ -264,7 +296,16 @@ function showEmails() {
   closeDetail()
 }
 
+function showChat() {
+  if (activeSection.value === 'chat' && !selectedScheduleId.value) return
+  chatVisited.value = true
+  activeSection.value = 'chat'
+  closeDetail()
+}
+
 function closeDetail() {
+  createInitialData.value = null
+  editInitialOverrides.value = null
   editingSchedule.value = false
   ++detailRequest
   selectedScheduleId.value = null
@@ -330,7 +371,17 @@ onMounted(() => { void load() })
           </svg>
           <span class="week-nav-label">{{ t('emailAudit.title') }}</span>
         </button>
-
+        <button class="week-nav-item" :class="{ 'week-nav-active': activeSection === 'chat' }" type="button"
+          :aria-current="activeSection === 'chat' ? 'page' : undefined"
+          :aria-label="sidebarCollapsed ? t('chat.title') : undefined"
+          :title="sidebarCollapsed ? t('chat.title') : undefined"
+          :disabled="creatingSchedule || editingSchedule || cancellingSchedule" @click="showChat">
+          <svg class="week-nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M4 5h16v11H9l-5 4V5Z" /><path d="M8 9h8M8 12h5" />
+          </svg>
+          <span class="week-nav-label">{{ t('chat.title') }}</span>
+        </button>
       </nav>
       <div class="week-sidebar-bottom">
         <p class="week-privacy">{{ t('week.privacy') }}</p>
@@ -353,21 +404,21 @@ onMounted(() => { void load() })
 
     <div class="week-area">
       <header class="week-topbar">
-        <span>{{ t('week.personal') }} &nbsp;/&nbsp; <strong>{{ t(creatingSchedule ? 'create.title' : editingSchedule ? 'edit.title' : selectedScheduleId ? 'detail.title' : activeSection === 'history' ? 'history.title' : activeSection === 'reminders' ? 'reminders.title' : activeSection === 'emails' ? 'emailAudit.title' : 'week.title') }}</strong></span>
+        <span>{{ t('week.personal') }} &nbsp;/&nbsp; <strong>{{ t(creatingSchedule ? 'create.title' : editingSchedule ? 'edit.title' : selectedScheduleId ? 'detail.title' : activeSection === 'history' ? 'history.title' : activeSection === 'reminders' ? 'reminders.title' : activeSection === 'emails' ? 'emailAudit.title' : activeSection === 'chat' ? 'chat.title' : 'week.title') }}</strong></span>
         <span>{{ t('week.timezone') }}</span>
       </header>
       <main class="week-content">
         <p v-if="props.logoutError" class="alert alert-danger" role="alert">{{ t(props.logoutError) }}</p>
         <CreateScheduleView v-if="creatingSchedule" :session="props.session" :related-people="relatedPeople"
-          @cancel="creatingSchedule = false" @created="showCreatedSchedule"
+          :initial-data="createInitialData" @cancel="cancelCreateSchedule" @created="showCreatedSchedule"
           @session-updated="emit('sessionUpdated', $event)" @session-expired="emit('sessionExpired')" />
         <EditScheduleView v-else-if="editingSchedule && selectedSchedule" :session="props.session"
-          :schedule="selectedSchedule" :related-people="relatedPeople" @cancel="editingSchedule = false"
-          @saved="saveEditedSchedule" @reload="reloadAfterEdit"
+          :schedule="selectedSchedule" :related-people="relatedPeople" :initial-overrides="editInitialOverrides"
+          @cancel="cancelEditSchedule" @saved="saveEditedSchedule" @reload="reloadAfterEdit"
           @session-updated="emit('sessionUpdated', $event)" @session-expired="emit('sessionExpired')" />
         <ScheduleDetailView v-else-if="selectedScheduleId" :schedule="selectedSchedule" :loading="detailLoading"
           :error-key="detailErrorKey" :cancelling="cancellingSchedule" :cancel-error-key="cancelErrorKey"
-          :back-key="activeSection === 'history' ? 'history.back' : activeSection === 'emails' ? 'emailAudit.back' : 'detail.back'"
+          :back-key="activeSection === 'history' ? 'history.back' : activeSection === 'emails' ? 'emailAudit.back' : activeSection === 'chat' ? 'chat.back' : 'detail.back'"
           @back="closeDetail" @retry="loadDetail" @edit="openEdit" @cancel-confirmed="confirmCancel" />
         <HistoryView v-if="activeSection === 'history'" v-show="!selectedScheduleId" :session="props.session"
           @open-detail="openDetail" @session-updated="emit('sessionUpdated', $event)"
@@ -377,10 +428,14 @@ onMounted(() => { void load() })
         <EmailAuditView v-if="activeSection === 'emails'" v-show="!selectedScheduleId" :session="props.session"
           @open-schedule="openDetail" @session-updated="emit('sessionUpdated', $event)"
           @session-expired="emit('sessionExpired')" />
+        <ChatView v-if="chatVisited" v-show="activeSection === 'chat' && !selectedScheduleId && !creatingSchedule && !editingSchedule" :session="props.session"
+          @open-schedule="openDetail" @edit-create="openCreateFromChat" @edit-update="openEditFromChat"
+          @session-updated="emit('sessionUpdated', $event)" @session-expired="emit('sessionExpired')"
+          @schedule-changed="load" />
         <template v-if="activeSection === 'week' && !creatingSchedule && !selectedScheduleId">
         <div class="week-heading">
           <div><h1>{{ t('week.title') }}</h1><p>{{ t('week.subtitle') }}</p></div>
-          <button class="btn btn-primary" type="button" :disabled="loading" @click="creatingSchedule = true">{{ t('create.open') }}</button>
+          <button class="btn btn-primary" type="button" :disabled="loading" @click="createInitialData = null; creatingSchedule = true">{{ t('create.open') }}</button>
         </div>
 
         <div class="week-controls">
