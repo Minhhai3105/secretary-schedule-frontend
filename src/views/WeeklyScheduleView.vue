@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { AuthError, refreshSession, type LoginResult } from '../services/auth'
-import { getSchedule, listSchedules, ScheduleLoadError, type Schedule } from '../services/schedules'
+import { cancelSchedule, getSchedule, listSchedules, ScheduleCancelError, ScheduleLoadError, type Schedule } from '../services/schedules'
 import ScheduleDetailView from '../components/ScheduleDetailView.vue'
 import CreateScheduleView from '../components/CreateScheduleView.vue'
 import EditScheduleView from '../components/EditScheduleView.vue'
@@ -27,6 +27,8 @@ const selectedScheduleId = ref<string | null>(null)
 const selectedSchedule = ref<Schedule | null>(null)
 const detailLoading = ref(false)
 const detailErrorKey = ref('')
+const cancellingSchedule = ref(false)
+const cancelErrorKey = ref('')
 let detailRequest = 0
 const days = computed(() => weekDates(weekStart.value))
 const weekdayKeys = ['week.monday', 'week.tuesday', 'week.wednesday', 'week.thursday', 'week.friday', 'week.saturday', 'week.sunday']
@@ -124,6 +126,7 @@ async function loadDetail() {
   const request = ++detailRequest
   detailLoading.value = true
   detailErrorKey.value = ''
+  cancelErrorKey.value = ''
   selectedSchedule.value = null
   try {
     let result: Schedule
@@ -188,6 +191,48 @@ function reloadAfterEdit() {
   void loadDetail()
 }
 
+async function confirmCancel() {
+  const schedule = selectedSchedule.value
+  if (!schedule || schedule.status !== 'upcoming' || cancellingSchedule.value) return
+  cancellingSchedule.value = true
+  cancelErrorKey.value = ''
+  try {
+    let result: Schedule
+    try {
+      result = await cancelSchedule(props.session.access_token, schedule.id, schedule.version)
+    } catch (cause) {
+      if (!(cause instanceof ScheduleCancelError) || cause.code !== 'unauthorized') throw cause
+      const renewed = await refreshSession()
+      if (!renewed) {
+        emit('sessionExpired')
+        return
+      }
+      emit('sessionUpdated', renewed)
+      result = await cancelSchedule(renewed.access_token, schedule.id, schedule.version)
+    }
+    selectedSchedule.value = result
+    void load()
+  } catch (cause) {
+    if (cause instanceof ScheduleCancelError && cause.code === 'unauthorized') {
+      emit('sessionExpired')
+    } else if (cause instanceof ScheduleCancelError && cause.code === 'conflict') {
+      cancelErrorKey.value = 'detail.cancelConflict'
+    } else if (cause instanceof ScheduleCancelError && cause.code === 'alreadyCancelled') {
+      cancelErrorKey.value = 'detail.alreadyCancelled'
+    } else if (cause instanceof ScheduleCancelError && cause.code === 'notFound') {
+      cancelErrorKey.value = 'detail.notFound'
+    } else if (cause instanceof ScheduleCancelError && cause.code === 'network') {
+      cancelErrorKey.value = 'detail.cancelNetwork'
+    } else if (cause instanceof AuthError && cause.code === 'restoreNetwork') {
+      cancelErrorKey.value = 'detail.cancelNetwork'
+    } else {
+      cancelErrorKey.value = 'detail.cancelFailed'
+    }
+  } finally {
+    cancellingSchedule.value = false
+  }
+}
+
 function closeDetail() {
   editingSchedule.value = false
   ++detailRequest
@@ -195,6 +240,7 @@ function closeDetail() {
   selectedSchedule.value = null
   detailLoading.value = false
   detailErrorKey.value = ''
+  cancelErrorKey.value = ''
 }
 
 onMounted(() => { void load() })
@@ -233,7 +279,8 @@ onMounted(() => { void load() })
           @saved="saveEditedSchedule" @reload="reloadAfterEdit"
           @session-updated="emit('sessionUpdated', $event)" @session-expired="emit('sessionExpired')" />
         <ScheduleDetailView v-else-if="selectedScheduleId" :schedule="selectedSchedule" :loading="detailLoading"
-          :error-key="detailErrorKey" @back="closeDetail" @retry="loadDetail" @edit="openEdit" />
+          :error-key="detailErrorKey" :cancelling="cancellingSchedule" :cancel-error-key="cancelErrorKey"
+          @back="closeDetail" @retry="loadDetail" @edit="openEdit" @cancel-confirmed="confirmCancel" />
         <template v-else>
         <div class="week-heading">
           <div><h1>{{ t('week.title') }}</h1><p>{{ t('week.subtitle') }}</p></div>

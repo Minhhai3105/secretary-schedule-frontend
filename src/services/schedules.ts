@@ -179,3 +179,44 @@ export async function updateSchedule(
     throw new ScheduleUpdateError('failed')
   }
 }
+
+type ScheduleCancelErrorCode = 'network' | 'unauthorized' | 'notFound' | 'conflict' | 'alreadyCancelled' | 'failed'
+
+export class ScheduleCancelError extends Error {
+  readonly code: ScheduleCancelErrorCode
+
+  constructor(code: ScheduleCancelErrorCode) {
+    super(code)
+    this.code = code
+  }
+}
+
+export async function cancelSchedule(accessToken: string, id: string, version: number): Promise<Schedule> {
+  let response: Response
+  try {
+    response = await fetch(`${apiBaseUrl}/api/schedules/${encodeURIComponent(id)}/cancel`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ version }),
+    })
+  } catch {
+    throw new ScheduleCancelError('network')
+  }
+
+  if (response.status === 401) throw new ScheduleCancelError('unauthorized')
+  if (response.status === 404) throw new ScheduleCancelError('notFound')
+  if (response.status === 409) {
+    const body = await response.json().catch(() => null) as { detail?: string } | null
+    throw new ScheduleCancelError(body?.detail === 'Schedule already cancelled' ? 'alreadyCancelled' : 'conflict')
+  }
+  if (!response.ok) throw new ScheduleCancelError('failed')
+
+  try {
+    return (await response.json()) as Schedule
+  } catch {
+    throw new ScheduleCancelError('failed')
+  }
+}
