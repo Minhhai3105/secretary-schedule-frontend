@@ -129,3 +129,53 @@ export async function createSchedule(accessToken: string, payload: ScheduleCreat
     throw new ScheduleCreateError('failed')
   }
 }
+
+export interface ScheduleUpdatePayload extends ScheduleCreatePayload {
+  version: number
+}
+
+type ScheduleUpdateErrorCode = 'network' | 'unauthorized' | 'notFound' | 'conflict' | 'cannotEdit' | 'validation' | 'failed'
+
+export class ScheduleUpdateError extends Error {
+  readonly code: ScheduleUpdateErrorCode
+
+  constructor(code: ScheduleUpdateErrorCode) {
+    super(code)
+    this.code = code
+  }
+}
+
+export async function updateSchedule(
+  accessToken: string,
+  id: string,
+  payload: ScheduleUpdatePayload,
+): Promise<Schedule> {
+  let response: Response
+  try {
+    response = await fetch(`${apiBaseUrl}/api/schedules/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    })
+  } catch {
+    throw new ScheduleUpdateError('network')
+  }
+
+  if (response.status === 401) throw new ScheduleUpdateError('unauthorized')
+  if (response.status === 404) throw new ScheduleUpdateError('notFound')
+  if (response.status === 422) throw new ScheduleUpdateError('validation')
+  if (response.status === 409) {
+    const body = await response.json().catch(() => null) as { detail?: string } | null
+    throw new ScheduleUpdateError(body?.detail === 'Schedule version conflict' ? 'conflict' : 'cannotEdit')
+  }
+  if (!response.ok) throw new ScheduleUpdateError('failed')
+
+  try {
+    return (await response.json()) as Schedule
+  } catch {
+    throw new ScheduleUpdateError('failed')
+  }
+}

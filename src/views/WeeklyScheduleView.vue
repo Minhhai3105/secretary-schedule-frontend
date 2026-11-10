@@ -5,6 +5,7 @@ import { AuthError, refreshSession, type LoginResult } from '../services/auth'
 import { getSchedule, listSchedules, ScheduleLoadError, type Schedule } from '../services/schedules'
 import ScheduleDetailView from '../components/ScheduleDetailView.vue'
 import CreateScheduleView from '../components/CreateScheduleView.vue'
+import EditScheduleView from '../components/EditScheduleView.vue'
 import { mondayOf, shiftDate, todayInVietnam, vietnamDate, vietnamTime, weekDates } from '../utils/week'
 
 const props = defineProps<{ session: LoginResult; loggingOut: boolean; logoutError: string }>()
@@ -21,6 +22,7 @@ const relatedPeople = ref<string[]>([])
 const loading = ref(false)
 const errorKey = ref('')
 const creatingSchedule = ref(false)
+const editingSchedule = ref(false)
 const selectedScheduleId = ref<string | null>(null)
 const selectedSchedule = ref<Schedule | null>(null)
 const detailLoading = ref(false)
@@ -169,7 +171,25 @@ function openDetail(id: string) {
   void loadDetail()
 }
 
+function openEdit() {
+  if (selectedSchedule.value?.status === 'upcoming') editingSchedule.value = true
+}
+
+function saveEditedSchedule(schedule: Schedule) {
+  selectedSchedule.value = schedule
+  editingSchedule.value = false
+  weekStart.value = mondayOf(vietnamDate(schedule.starts_at_utc))
+  selectedPerson.value = ''
+  void load()
+}
+
+function reloadAfterEdit() {
+  editingSchedule.value = false
+  void loadDetail()
+}
+
 function closeDetail() {
+  editingSchedule.value = false
   ++detailRequest
   selectedScheduleId.value = null
   selectedSchedule.value = null
@@ -200,7 +220,7 @@ onMounted(() => { void load() })
 
     <div class="week-area">
       <header class="week-topbar">
-        <span>{{ t('week.personal') }} &nbsp;/&nbsp; <strong>{{ t(creatingSchedule ? 'create.title' : selectedScheduleId ? 'detail.title' : 'week.title') }}</strong></span>
+        <span>{{ t('week.personal') }} &nbsp;/&nbsp; <strong>{{ t(creatingSchedule ? 'create.title' : editingSchedule ? 'edit.title' : selectedScheduleId ? 'detail.title' : 'week.title') }}</strong></span>
         <span>{{ t('week.timezone') }}</span>
       </header>
       <main class="week-content">
@@ -208,8 +228,12 @@ onMounted(() => { void load() })
         <CreateScheduleView v-if="creatingSchedule" :session="props.session" :related-people="relatedPeople"
           @cancel="creatingSchedule = false" @created="showCreatedSchedule"
           @session-updated="emit('sessionUpdated', $event)" @session-expired="emit('sessionExpired')" />
+        <EditScheduleView v-else-if="editingSchedule && selectedSchedule" :session="props.session"
+          :schedule="selectedSchedule" :related-people="relatedPeople" @cancel="editingSchedule = false"
+          @saved="saveEditedSchedule" @reload="reloadAfterEdit"
+          @session-updated="emit('sessionUpdated', $event)" @session-expired="emit('sessionExpired')" />
         <ScheduleDetailView v-else-if="selectedScheduleId" :schedule="selectedSchedule" :loading="detailLoading"
-          :error-key="detailErrorKey" @back="closeDetail" @retry="loadDetail" />
+          :error-key="detailErrorKey" @back="closeDetail" @retry="loadDetail" @edit="openEdit" />
         <template v-else>
         <div class="week-heading">
           <div><h1>{{ t('week.title') }}</h1><p>{{ t('week.subtitle') }}</p></div>

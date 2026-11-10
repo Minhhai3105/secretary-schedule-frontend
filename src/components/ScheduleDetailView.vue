@@ -5,7 +5,7 @@ import type { Schedule } from '../services/schedules'
 import { vietnamDate, vietnamTime } from '../utils/week'
 
 const props = defineProps<{ schedule: Schedule | null; loading: boolean; errorKey: string }>()
-const emit = defineEmits<{ back: []; retry: [] }>()
+const emit = defineEmits<{ back: []; retry: []; edit: [] }>()
 const { locale, t } = useI18n({ useScope: 'global' })
 
 const dateLabel = computed(() => {
@@ -57,9 +57,13 @@ const meetingLink = computed(() => {
     <article v-else-if="props.schedule" class="detail-card">
       <div class="detail-card-header">
         <h2>{{ props.schedule.title }}</h2>
-        <span class="detail-status" :class="`detail-status-${props.schedule.status}`">
-          {{ t(`detail.${props.schedule.status}`) }}
-        </span>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <span class="detail-status" :class="`detail-status-${props.schedule.status}`">
+            {{ t(`detail.${props.schedule.status}`) }}
+          </span>
+          <button v-if="props.schedule.status === 'upcoming'" class="btn btn-outline-primary btn-sm"
+            type="button" @click="emit('edit')">{{ t('detail.edit') }}</button>
+        </div>
       </div>
       <dl class="detail-fields">
         <div><dt>{{ t('detail.time') }}</dt><dd>{{ timeLabel }}<small>{{ t('week.timezone') }}</small></dd></div>
