@@ -5,7 +5,7 @@ import PasswordField from '../components/PasswordField.vue'
 import { login, LoginError, type LoginResult } from '../services/auth'
 
 const { t } = useI18n({ useScope: 'global' })
-const emit = defineEmits<{ authenticated: [result: LoginResult]; registerRequested: [] }>()
+const emit = defineEmits<{ authenticated: [result: LoginResult]; registerRequested: []; forgotRequested: [] }>()
 const email = ref('')
 const password = ref('')
 const error = ref('')
@@ -63,6 +63,7 @@ async function submit() {
           <div class="mb-4">
             <PasswordField id="password" v-model="password" :label="t('common.password')"
               autocomplete="current-password" :disabled="loading" />
+            <button class="btn btn-link p-0 mt-2" type="button" @click="emit('forgotRequested')">{{ t('login.forgotPassword') }}</button>
           </div>
           <button class="btn btn-primary w-100" type="submit" :disabled="loading">
             {{ t(loading ? 'login.submitting' : 'login.submit') }}

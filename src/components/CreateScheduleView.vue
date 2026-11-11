@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { AuthError, refreshSession, type LoginResult } from '../services/auth'
 import { createSchedule, ScheduleCreateError, type Schedule, type ScheduleCreatePayload } from '../services/schedules'
 import { todayInVietnam, vietnamDate, vietnamTime } from '../utils/week'
+import { canonicalRelatedPerson, isSelf } from '../utils/relatedPerson'
 
 const props = defineProps<{
   session: LoginResult
@@ -19,24 +20,33 @@ const emit = defineEmits<{
 const { t } = useI18n({ useScope: 'global' })
 const initialStart = typeof props.initialData?.starts_at_utc === 'string' ? props.initialData.starts_at_utc : ''
 const initialEnd = typeof props.initialData?.ends_at_utc === 'string' ? props.initialData.ends_at_utc : ''
+const initialDate = typeof props.initialData?.date === 'string' ? props.initialData.date : ''
 const title = ref(typeof props.initialData?.title === 'string' ? props.initialData.title : '')
-const date = ref(initialStart ? vietnamDate(initialStart) : todayInVietnam())
+const date = ref(initialStart ? vietnamDate(initialStart) : initialDate || todayInVietnam())
 const startTime = ref(initialStart ? vietnamTime(initialStart) : '')
 const endTime = ref(initialEnd ? vietnamTime(initialEnd) : '')
+const endDate = ref(initialEnd ? vietnamDate(initialEnd) : date.value)
 const meetingMode = ref<'offline' | 'online'>(props.initialData?.meeting_mode === 'online' ? 'online' : 'offline')
 const location = ref(typeof props.initialData?.location === 'string' ? props.initialData.location : '')
 const meetingUrl = ref(typeof props.initialData?.meeting_url === 'string' ? props.initialData.meeting_url : '')
 const relatedPerson = ref(
   typeof props.initialData?.related_person === 'string' && props.initialData.related_person.trim()
-    ? props.initialData.related_person
-    : 'Tôi',
+    ? canonicalRelatedPerson(props.initialData.related_person.trim())
+    : 'Me',
 )
+const relatedPersonInput = computed({
+  get: () => isSelf(relatedPerson.value) ? t('week.me') : relatedPerson.value,
+  set: (value: string) => { relatedPerson.value = canonicalRelatedPerson(value) },
+})
 const preparation = ref(typeof props.initialData?.preparation === 'string' ? props.initialData.preparation : '')
 const notes = ref(typeof props.initialData?.notes === 'string' ? props.initialData.notes : '')
 const errorKey = ref('')
 const timeError = ref(false)
 const saving = ref(false)
-const createdSchedule = ref<Schedule | null>(null)
+
+watch(date, (next, previous) => {
+  if (endDate.value === previous) endDate.value = next
+})
 
 function vietnamLocalToUtc(day: string, time: string): string | null {
   const value = new Date(`${day}T${time}:00+07:00`)
@@ -58,7 +68,7 @@ async function submit() {
     return
   }
   const startsAt = vietnamLocalToUtc(date.value, startTime.value)
-  const endsAt = endTime.value ? vietnamLocalToUtc(date.value, endTime.value) : null
+  const endsAt = endTime.value ? vietnamLocalToUtc(endDate.value || date.value, endTime.value) : null
   if (!startsAt || (endTime.value && !endsAt)) {
     errorKey.value = 'create.validationError'
     return
@@ -84,7 +94,7 @@ async function submit() {
     meeting_mode: meetingMode.value,
     location: meetingMode.value === 'offline' ? location.value.trim() || null : null,
     meeting_url: urlText || null,
-    related_person: relatedPerson.value.trim() || 'Tôi',
+    related_person: canonicalRelatedPerson(relatedPerson.value.trim() || 'Me'),
     preparation: preparation.value.trim() || null,
     notes: notes.value.trim() || null,
   }
@@ -103,7 +113,7 @@ async function submit() {
       emit('sessionUpdated', renewed)
       result = await createSchedule(renewed.access_token, payload)
     }
-    createdSchedule.value = result
+    emit('created', result)
   } catch (cause) {
     if (cause instanceof ScheduleCreateError && cause.code === 'unauthorized') {
       emit('sessionExpired')
@@ -132,14 +142,7 @@ async function submit() {
       </button>
     </div>
 
-    <div v-if="createdSchedule" class="create-result" role="status">
-      <h2>{{ t('create.success') }}</h2>
-      <p>{{ t('create.successHint') }}</p>
-      <button class="btn btn-primary" type="button" @click="emit('created', createdSchedule)">{{ t('create.viewCreated') }}</button>
-      <button class="btn btn-outline-secondary" type="button" @click="createdSchedule = null">{{ t('create.backToForm') }}</button>
-    </div>
-
-    <form v-else class="create-form" novalidate @submit.prevent="submit">
+    <form class="create-form" novalidate @submit.prevent="submit">
       <fieldset :disabled="saving">
         <div class="mb-3">
           <label class="form-label" for="create-title">{{ t('create.titleLabel') }} *</label>
@@ -153,6 +156,10 @@ async function submit() {
           <div><label class="form-label" for="create-end">{{ t('create.endTime') }}</label>
             <input id="create-end" v-model="endTime" class="form-control" type="time" :aria-invalid="timeError" @input="timeError = false" />
             <small v-if="timeError" class="text-danger">{{ t('create.timeError') }}</small></div>
+        </div>
+        <div v-if="endTime" class="mb-3">
+          <label class="form-label" for="create-end-date">{{ t('create.endDate') }}</label>
+          <input id="create-end-date" v-model="endDate" class="form-control" type="date" :aria-invalid="timeError" @input="timeError = false" />
         </div>
         <div class="mb-3">
           <span class="form-label d-block">{{ t('create.mode') }} *</span>
@@ -171,8 +178,8 @@ async function submit() {
         </div>
         <div class="mb-3">
           <label class="form-label" for="create-person">{{ t('create.relatedPerson') }}</label>
-          <input id="create-person" v-model="relatedPerson" class="form-control" maxlength="255" list="create-people" />
-          <datalist id="create-people"><option v-for="person in relatedPeople" :key="person" :value="person" /></datalist>
+          <input id="create-person" v-model="relatedPersonInput" class="form-control" maxlength="255" list="create-people" />
+          <datalist id="create-people"><option v-for="person in relatedPeople" :key="person" :value="isSelf(person) ? t('week.me') : person" /></datalist>
         </div>
         <div class="mb-3"><label class="form-label" for="create-preparation">{{ t('create.preparation') }}</label>
           <textarea id="create-preparation" v-model="preparation" class="form-control" rows="3" /></div>
