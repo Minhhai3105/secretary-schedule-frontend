@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { AuthError, refreshSession, type LoginResult } from '../services/auth'
 import { ScheduleUpdateError, updateSchedule, type Schedule, type ScheduleUpdatePayload } from '../services/schedules'
 import { vietnamDate, vietnamTime } from '../utils/week'
+import { canonicalRelatedPerson, isSelf } from '../utils/relatedPerson'
 
 const props = defineProps<{
   session: LoginResult
@@ -45,9 +46,13 @@ const meetingUrl = ref(
 )
 const relatedPerson = ref(
   typeof ov?.related_person === 'string' && ov.related_person.trim()
-    ? ov.related_person
-    : props.schedule.related_person,
+    ? canonicalRelatedPerson(ov.related_person.trim())
+    : canonicalRelatedPerson(props.schedule.related_person),
 )
+const relatedPersonInput = computed({
+  get: () => isSelf(relatedPerson.value) ? t('week.me') : relatedPerson.value,
+  set: (value: string) => { relatedPerson.value = canonicalRelatedPerson(value) },
+})
 const preparation = ref(
   ov && Object.hasOwn(ov, 'preparation')
     ? (typeof ov.preparation === 'string' ? ov.preparation : '')
@@ -103,7 +108,7 @@ async function submit() {
     meeting_mode: meetingMode.value,
     location: meetingMode.value === 'offline' ? location.value.trim() || null : null,
     meeting_url: urlText || null,
-    related_person: relatedPerson.value.trim() || 'Tôi',
+    related_person: canonicalRelatedPerson(relatedPerson.value.trim() || 'Me'),
     preparation: preparation.value.trim() || null,
     notes: notes.value.trim() || null,
   }
@@ -114,7 +119,7 @@ async function submit() {
     meeting_mode: props.schedule.meeting_mode,
     location: props.schedule.location,
     meeting_url: props.schedule.meeting_url,
-    related_person: props.schedule.related_person,
+    related_person: canonicalRelatedPerson(props.schedule.related_person),
     preparation: props.schedule.preparation,
     notes: props.schedule.notes,
   }
@@ -208,8 +213,8 @@ async function submit() {
         </div>
         <div class="mb-3">
           <label class="form-label" for="edit-person">{{ t('create.relatedPerson') }}</label>
-          <input id="edit-person" v-model="relatedPerson" class="form-control" maxlength="255" list="edit-people" />
-          <datalist id="edit-people"><option v-for="person in relatedPeople" :key="person" :value="person" /></datalist>
+          <input id="edit-person" v-model="relatedPersonInput" class="form-control" maxlength="255" list="edit-people" />
+          <datalist id="edit-people"><option v-for="person in relatedPeople" :key="person" :value="isSelf(person) ? t('week.me') : person" /></datalist>
         </div>
         <div class="mb-3"><label class="form-label" for="edit-preparation">{{ t('create.preparation') }}</label>
           <textarea id="edit-preparation" v-model="preparation" class="form-control" rows="3" /></div>

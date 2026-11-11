@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { AuthError, refreshSession, type LoginResult } from '../services/auth'
 import { listScheduleHistory, ScheduleLoadError, type HistoryType, type Schedule, type ScheduleHistoryPage } from '../services/schedules'
 import { vietnamDate, vietnamTime } from '../utils/week'
+import { isSelf } from '../utils/relatedPerson'
 
 const props = defineProps<{ session: LoginResult }>()
 const emit = defineEmits<{
@@ -134,7 +135,7 @@ onMounted(() => { void load() })
           </span>
           <small class="d-block workspace-meta mt-2">
             {{ dateLabel(schedule) }} · {{ vietnamTime(schedule.starts_at_utc) }} ·
-            {{ schedule.related_person === 'Tôi' ? t('week.me') : schedule.related_person }}
+            {{ isSelf(schedule.related_person) ? t('week.me') : schedule.related_person }}
           </small>
         </button>
       </div>

@@ -7,6 +7,7 @@ import {
   type ChatProposal, type ChatTurn,
 } from '../services/chat'
 import { getSchedule, ScheduleLoadError, type Schedule } from '../services/schedules'
+import { isSelf } from '../utils/relatedPerson'
 
 type ProposalState = 'pending' | 'confirmed' | 'cancelled' | 'stale' | 'uncertain'
 interface Message extends ChatTurn {
@@ -61,7 +62,7 @@ function formatFieldValue(key: string, raw: unknown): string {
   if (raw === null || raw === undefined || raw === '') return t('chat.notProvided')
   if ((key === 'starts_at_utc' || key === 'ends_at_utc') && typeof raw === 'string') return dateTimeLabel(raw)
   if (key === 'meeting_mode' && (raw === 'online' || raw === 'offline')) return t(`week.${raw}`)
-  if (key === 'related_person' && raw === 'Tôi') return t('week.me')
+  if (key === 'related_person' && typeof raw === 'string' && isSelf(raw)) return t('week.me')
   return String(raw)
 }
 

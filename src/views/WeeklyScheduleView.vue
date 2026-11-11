@@ -12,6 +12,7 @@ import EmailAuditView from '../components/EmailAuditView.vue'
 import ChatView from '../components/ChatView.vue'
 import LogoutConfirmModal from '../components/LogoutConfirmModal.vue'
 import { mondayOf, shiftDate, todayInVietnam, vietnamDate, vietnamTime, weekDates } from '../utils/week'
+import { isSelf, relatedPeopleOptions } from '../utils/relatedPerson'
 
 type Section = 'week' | 'history' | 'reminders' | 'emails' | 'chat'
 
@@ -46,6 +47,7 @@ const cancelErrorKey = ref('')
 const confirmingLogout = ref(false)
 let detailRequest = 0
 let handlingPopState = false
+let restoreEditAfterLoad = false
 const days = computed(() => weekDates(weekStart.value))
 const weekdayKeys = ['week.monday', 'week.tuesday', 'week.wednesday', 'week.thursday', 'week.friday', 'week.saturday', 'week.sunday']
 const schedulesByDay = computed(() => {
@@ -88,7 +90,7 @@ function syncHistory(replace = false) {
 }
 
 function personLabel(person: string): string {
-  return person === 'Tôi' ? t('week.me') : person
+  return isSelf(person) ? t('week.me') : person
 }
 
 function timeLabel(schedule: Schedule): string {
@@ -110,9 +112,11 @@ async function load() {
   try {
     const from = weekStart.value
     const to = days.value[6]
+    const selfFilter = selectedPerson.value === 'Me'
+    const apiPerson = selfFilter ? '' : selectedPerson.value
     let result
     try {
-      result = await listSchedules(props.session.access_token, from, to, selectedPerson.value)
+      result = await listSchedules(props.session.access_token, from, to, apiPerson)
     } catch (cause) {
       if (!(cause instanceof ScheduleLoadError) || cause.code !== 'unauthorized') throw cause
       const renewed = await refreshSession()
@@ -121,10 +125,10 @@ async function load() {
         return
       }
       emit('sessionUpdated', renewed)
-      result = await listSchedules(renewed.access_token, from, to, selectedPerson.value)
+      result = await listSchedules(renewed.access_token, from, to, apiPerson)
     }
-    schedules.value = result.schedules
-    relatedPeople.value = result.related_people
+    schedules.value = selfFilter ? result.schedules.filter((item: Schedule) => isSelf(item.related_person)) : result.schedules
+    relatedPeople.value = relatedPeopleOptions(result.related_people)
   } catch (cause) {
     if (cause instanceof ScheduleLoadError && cause.code === 'unauthorized') {
       emit('sessionExpired')
@@ -177,7 +181,13 @@ async function loadDetail() {
       emit('sessionUpdated', renewed)
       result = await getSchedule(renewed.access_token, id)
     }
-    if (request === detailRequest) selectedSchedule.value = result
+    if (request === detailRequest) {
+      selectedSchedule.value = result
+      if (restoreEditAfterLoad) {
+        editingSchedule.value = result.status === 'upcoming'
+        restoreEditAfterLoad = false
+      }
+    }
   } catch (cause) {
     if (request !== detailRequest) return
     if (cause instanceof ScheduleLoadError && cause.code === 'unauthorized') {
@@ -226,8 +236,10 @@ function cancelCreateSchedule() {
   syncHistory()
 }
 
-function openDetail(id: string) {
+function openDetail(id: string, restoreEditing = false) {
   selectedScheduleId.value = id
+  editingSchedule.value = false
+  restoreEditAfterLoad = restoreEditing
   syncHistory()
   void loadDetail()
 }
@@ -329,6 +341,7 @@ function closeDetail() {
   editInitialOverrides.value = null
   creatingSchedule.value = false
   editingSchedule.value = false
+  restoreEditAfterLoad = false
   ++detailRequest
   selectedScheduleId.value = null
   selectedSchedule.value = null
@@ -348,13 +361,16 @@ function onPopState(event: PopStateEvent) {
       if (section === 'chat') chatVisited.value = true
       activeSection.value = section
     }
-    creatingSchedule.value = Boolean(state?.creating)
-    editingSchedule.value = Boolean(state?.editing && selectedSchedule.value)
     const nextId = typeof state?.scheduleId === 'string' ? state.scheduleId : null
+    const wantsEdit = Boolean(state?.editing)
     if (nextId !== selectedScheduleId.value) {
-      if (nextId) openDetail(nextId)
+      if (nextId) openDetail(nextId, wantsEdit)
       else closeDetail()
+    } else {
+      editingSchedule.value = wantsEdit && selectedSchedule.value?.status === 'upcoming'
+      restoreEditAfterLoad = wantsEdit && !selectedSchedule.value
     }
+    creatingSchedule.value = Boolean(state?.creating)
   } finally {
     handlingPopState = false
   }
