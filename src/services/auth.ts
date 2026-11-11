@@ -22,7 +22,7 @@ export class AuthError extends Error {
 
 export class LoginError extends AuthError {}
 
-const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? `http://${window.location.hostname}:8000`
+const apiBaseUrl = import.meta.env?.VITE_API_BASE_URL ?? (typeof window !== 'undefined' ? `http://${window.location.hostname}:8000` : 'http://localhost:8000')
 
 export async function login(email: string, password: string): Promise<LoginResult> {
   let response: Response
@@ -49,22 +49,34 @@ export async function login(email: string, password: string): Promise<LoginResul
   return (await response.json()) as LoginResult
 }
 
-export async function refreshSession(): Promise<LoginResult | null> {
-  let response: Response
+let activeRefreshPromise: Promise<LoginResult | null> | null = null
 
-  try {
-    response = await fetch(`${apiBaseUrl}/api/auth/refresh`, {
-      method: 'POST',
-      credentials: 'include',
-    })
-  } catch {
-    throw new AuthError('restoreNetwork')
+export async function refreshSession(): Promise<LoginResult | null> {
+  if (activeRefreshPromise) {
+    return activeRefreshPromise
   }
 
-  if (response.status === 401) return null
-  if (!response.ok) throw new AuthError('restoreFailed')
+  activeRefreshPromise = (async () => {
+    let response: Response
 
-  return (await response.json()) as LoginResult
+    try {
+      response = await fetch(`${apiBaseUrl}/api/auth/refresh`, {
+        method: 'POST',
+        credentials: 'include',
+      })
+    } catch {
+      throw new AuthError('restoreNetwork')
+    }
+
+    if (response.status === 401) return null
+    if (!response.ok) throw new AuthError('restoreFailed')
+
+    return (await response.json()) as LoginResult
+  })().finally(() => {
+    activeRefreshPromise = null
+  })
+
+  return activeRefreshPromise
 }
 
 export async function logout(): Promise<void> {

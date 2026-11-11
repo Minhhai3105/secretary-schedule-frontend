@@ -136,8 +136,15 @@ async function fetchConflicts(startsAt: string, endsAt: string | null): Promise<
 }
 
 watch([date, startTime, endDate, endTime], () => {
+  conflictRequestId++
+  checkingConflicts.value = false
   conflictCheckFailed.value = false
-  if (conflictCheckTimer) clearTimeout(conflictCheckTimer)
+  conflicts.value = []
+
+  if (conflictCheckTimer) {
+    clearTimeout(conflictCheckTimer)
+    conflictCheckTimer = null
+  }
   conflictCheckTimer = setTimeout(() => {
     if (!date.value || !startTime.value) {
       conflicts.value = []
@@ -177,6 +184,44 @@ async function submit(forceProceed = false) {
     errorKey.value = 'create.required'
     return
   }
+  if (!forceProceed) {
+    while (true) {
+      if (conflictCheckTimer) {
+        clearTimeout(conflictCheckTimer)
+        conflictCheckTimer = null
+      }
+      const checkStartsAt = vietnamLocalToUtc(date.value, startTime.value)
+      const checkEndsAt = endTime.value ? vietnamLocalToUtc(endDate.value || date.value, endTime.value) : null
+      if (!checkStartsAt || (endTime.value && !checkEndsAt)) {
+        errorKey.value = 'edit.validationError'
+        return
+      }
+      if (checkEndsAt && checkEndsAt <= checkStartsAt) {
+        timeError.value = true
+        return
+      }
+
+      let detectedConflicts: Schedule[]
+      try {
+        detectedConflicts = await fetchConflicts(checkStartsAt, checkEndsAt)
+      } catch {
+        return
+      }
+
+      const currentStartsAt = vietnamLocalToUtc(date.value, startTime.value)
+      const currentEndsAt = endTime.value ? vietnamLocalToUtc(endDate.value || date.value, endTime.value) : null
+      if (currentStartsAt !== checkStartsAt || currentEndsAt !== checkEndsAt) {
+        continue
+      }
+
+      if (detectedConflicts.length > 0) {
+        showConflictModal.value = true
+        return
+      }
+      break
+    }
+  }
+  showConflictModal.value = false
   const startsAt = vietnamLocalToUtc(date.value, startTime.value)
   const endsAt = endTime.value ? vietnamLocalToUtc(endDate.value || date.value, endTime.value) : null
   if (!startsAt || (endTime.value && !endsAt)) {
@@ -187,23 +232,6 @@ async function submit(forceProceed = false) {
     timeError.value = true
     return
   }
-  if (!forceProceed) {
-    if (conflictCheckTimer) {
-      clearTimeout(conflictCheckTimer)
-      conflictCheckTimer = null
-    }
-    let detectedConflicts: Schedule[]
-    try {
-      detectedConflicts = await fetchConflicts(startsAt, endsAt)
-    } catch {
-      return
-    }
-    if (detectedConflicts.length > 0) {
-      showConflictModal.value = true
-      return
-    }
-  }
-  showConflictModal.value = false
   const urlText = meetingMode.value === 'online' ? meetingUrl.value.trim() : ''
   if (urlText) {
     try {

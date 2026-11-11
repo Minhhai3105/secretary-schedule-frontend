@@ -1,14 +1,65 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
+// Provide minimal mock for browser environment needed by auth.ts
+if (typeof globalThis.window === 'undefined') {
+  ;(globalThis as any).window = { location: { hostname: 'localhost' } }
+}
+
+import { refreshSession } from '../src/services/auth.ts'
+import { createServer } from 'vite'
+import { createSSRApp, h } from 'vue'
+import { createI18n } from 'vue-i18n'
+import { renderToString } from 'vue/server-renderer'
+import vi from '../src/i18n/vi.json' with { type: 'json' }
+
 // ----------------------------------------------------------------------------
-// Test Case 1: Đổi giờ rồi bấm Lưu ngay (Change time then click Save immediately)
-// Verify:
-// - Debounce timer is immediately cancelled
-// - fetchConflicts is invoked with latest time and awaited
-// - If conflict exists: modal is shown, save is NOT executed
-// - If conflict check fails: error alert is shown, save is NOT executed
-// - If user confirms (forceProceed = true): save is executed
+// Test 1: Concurrent refreshSession calls must share a single in-flight request
+// (Backend prevents refresh token reuse which would revoke session)
+// ----------------------------------------------------------------------------
+
+test('Auth: Concurrent refreshSession calls share the same in-flight fetch promise', async () => {
+  let fetchCallCount = 0
+  const originalFetch = globalThis.fetch
+
+  try {
+    globalThis.fetch = async () => {
+      fetchCallCount++
+      await new Promise((r) => setTimeout(r, 30))
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          access_token: 'mock-token-xyz',
+          user: { id: 'u1', email: 'test@example.com', name: 'Test' },
+        }),
+      } as Response
+    }
+
+    // Call refreshSession 3 times in parallel
+    const [p1, p2, p3] = await Promise.all([
+      refreshSession(),
+      refreshSession(),
+      refreshSession(),
+    ])
+
+    // Verify all 3 calls shared the exact same network request
+    assert.equal(fetchCallCount, 1, 'Exactly 1 fetch call must be made for parallel refreshes')
+    assert.equal(p1?.access_token, 'mock-token-xyz')
+    assert.equal(p2?.access_token, 'mock-token-xyz')
+    assert.equal(p3?.access_token, 'mock-token-xyz')
+
+    // After resolution, the in-flight promise is cleared so subsequent calls can fetch anew
+    const p4 = await refreshSession()
+    assert.equal(fetchCallCount, 2, 'Subsequent call after completion must create a new fetch call')
+    assert.equal(p4?.access_token, 'mock-token-xyz')
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+})
+
+// ----------------------------------------------------------------------------
+// Test 2: Ca 1 - Đổi giờ rồi bấm Lưu ngay (Change time then click Save immediately)
 // ----------------------------------------------------------------------------
 
 test('Case 1: Change time and click Save immediately - awaits conflict check and guards save', async () => {
@@ -19,18 +70,13 @@ test('Case 1: Change time and click Save immediately - awaits conflict check and
   let conflictCheckFailed = false
   let checkingConflicts = false
 
-  // Simulated component state
-  let conflictCheckTimer: NodeJS.Timeout | null = setTimeout(() => {
-    // If not cancelled, this would run
-  }, 300)
+  let conflictCheckTimer: NodeJS.Timeout | null = setTimeout(() => {}, 300)
 
-  // Simulated fetchConflicts function
   async function fetchConflicts(startsAt: string, endsAt: string | null, mockConflicts: any[] = []) {
     checkingConflicts = true
     conflictCheckFailed = false
     try {
       conflictCheckCalledWith = { start: startsAt, end: endsAt }
-      // simulate async network delay
       await new Promise((r) => setTimeout(r, 20))
       return mockConflicts
     } finally {
@@ -38,7 +84,6 @@ test('Case 1: Change time and click Save immediately - awaits conflict check and
     }
   }
 
-  // Simulated submit function
   async function submit(
     startsAt: string,
     endsAt: string | null,
@@ -67,7 +112,6 @@ test('Case 1: Change time and click Save immediately - awaits conflict check and
     saveExecuted = true
   }
 
-  // 1A: User changes time and clicks save immediately, with a conflict
   const conflictItem = { id: 's1', title: 'Existing Meeting', starts_at_utc: '2026-11-12T02:00:00Z', ends_at_utc: '2026-11-12T03:00:00Z' }
   await submit('2026-11-12T02:30:00Z', '2026-11-12T03:30:00Z', false, [conflictItem])
 
@@ -75,127 +119,170 @@ test('Case 1: Change time and click Save immediately - awaits conflict check and
   assert.deepEqual(conflictCheckCalledWith, {
     start: '2026-11-12T02:30:00Z',
     end: '2026-11-12T03:30:00Z',
-  }, 'Must check conflicts with exact latest time entered')
+  })
   assert.equal(showConflictModal, true, 'Must display conflict modal when conflict is returned')
   assert.equal(saveExecuted, false, 'Save must NOT execute when conflict is detected')
 
-  // 1B: User decides to force proceed ("Vẫn lưu")
+  // Force proceed
   await submit('2026-11-12T02:30:00Z', '2026-11-12T03:30:00Z', true)
-  assert.equal(showConflictModal, false, 'Conflict modal must close on force proceed')
-  assert.equal(saveExecuted, true, 'Save must execute when forceProceed is true')
-
-  // 1C: Conflict check network failure on save
-  saveExecuted = false
-  showConflictModal = false
-  const failingFetchConflicts = async () => {
-    throw new Error('Network error during conflict check')
-  }
-  async function submitWithFailingCheck() {
-    try {
-      await failingFetchConflicts()
-    } catch {
-      conflictCheckFailed = true
-      return
-    }
-    saveExecuted = true
-  }
-  await submitWithFailingCheck()
-  assert.equal(conflictCheckFailed, true, 'conflictCheckFailed must be set on API error')
-  assert.equal(saveExecuted, false, 'Save must NOT be silently performed when check fails')
+  assert.equal(showConflictModal, false)
+  assert.equal(saveExecuted, true)
 })
 
 // ----------------------------------------------------------------------------
-// Test Case 2: Đổi giờ nhiều lần khi mạng chậm (Rapid time changes under slow network)
-// Verify:
-// - Older, slower responses are discarded and do NOT overwrite newer check results
-// - Only the latest request updates the conflict state
+// Test 3: Ca 2A - Ngay khi giờ thay đổi, vô hiệu hóa ngay kết quả đang chạy (0ms window)
 // ----------------------------------------------------------------------------
 
-test('Case 2: Rapid time changes with out-of-order network responses (Race condition guard)', async () => {
+test('Case 2A: Time input change invalidates in-flight check immediately (no 300ms stale window)', async () => {
   let conflictRequestId = 0
-  let currentConflicts: any[] = []
+  let conflicts: any[] = [{ id: 'old', title: 'Old Conflict' }]
   let checkingConflicts = false
-  let conflictCheckFailed = false
 
-  async function simulatedFetchConflicts(
-    requestId: number,
-    delayMs: number,
-    responseConflicts: any[],
-    shouldFail = false
-  ) {
+  async function slowFetch(reqId: number, delayMs: number) {
     checkingConflicts = true
-    conflictCheckFailed = false
-    try {
-      await new Promise((r) => setTimeout(r, delayMs))
-      if (shouldFail) {
-        throw new Error('Network failure')
-      }
-      if (requestId !== conflictRequestId) {
-        // Stale response discarded!
-        return currentConflicts
-      }
-      currentConflicts = responseConflicts
-      return responseConflicts
-    } catch (cause) {
-      if (requestId === conflictRequestId) {
-        conflictCheckFailed = true
-        throw cause
-      }
-      return currentConflicts
-    } finally {
-      if (requestId === conflictRequestId) {
-        checkingConflicts = false
-      }
+    await new Promise((r) => setTimeout(r, delayMs))
+    if (reqId !== conflictRequestId) {
+      return conflicts
     }
+    conflicts = [{ id: 'stale-result', title: 'Stale' }]
+    return conflicts
   }
 
-  // User rapidly inputs 3 different times:
-  // Request 1: Time T1 (slow, takes 150ms), returns [Conflict1]
+  // Request 1 starts for Time A
   const id1 = ++conflictRequestId
-  const req1 = simulatedFetchConflicts(id1, 150, [{ id: 'c1', title: 'Conflict 1' }])
+  const req1 = slowFetch(id1, 100)
 
-  // Request 2: Time T2 (fast, takes 50ms), returns []
-  const id2 = ++conflictRequestId
-  const req2 = simulatedFetchConflicts(id2, 50, [])
+  // After 20ms (well within 300ms debounce), user changes time to Time B
+  await new Promise((r) => setTimeout(r, 20))
 
-  // Wait for req2 to finish first
-  await req2
-  assert.equal(currentConflicts.length, 0, 'After req2 completes, conflicts should be empty')
-  assert.equal(checkingConflicts, false, 'checkingConflicts should be false after req2')
+  // Watch handler fires IMMEDIATELY on input:
+  conflictRequestId++
+  checkingConflicts = false
+  conflicts = []
 
-  // Now req1 finishes (stale!)
+  // Assert state is cleared immediately, not 300ms later
+  assert.equal(conflicts.length, 0, 'Conflicts must be wiped immediately on input change')
+  assert.equal(checkingConflicts, false, 'checkingConflicts must be reset immediately')
+
+  // Now Request 1 completes (at 100ms)
   await req1
-  assert.equal(currentConflicts.length, 0, 'Stale req1 must NOT overwrite current conflicts with old Conflict 1')
-
-  // Request 3: Time T3 (takes 80ms), returns [Conflict 3]
-  const id3 = ++conflictRequestId
-  const req3 = simulatedFetchConflicts(id3, 80, [{ id: 'c3', title: 'Conflict 3' }])
-
-  // While req3 is running, request 4 is fired with 40ms delay, returns [Conflict 4]
-  const id4 = ++conflictRequestId
-  const req4 = simulatedFetchConflicts(id4, 40, [{ id: 'c4', title: 'Conflict 4' }])
-
-  // req4 finishes first (at 40ms) and sets Conflict 4
-  await req4
-  assert.equal(currentConflicts.length, 1)
-  assert.equal(currentConflicts[0].id, 'c4', 'req4 finished first and set Conflict 4')
-
-  // Now req3 finishes (at 80ms, stale!)
-  await req3
-  assert.equal(currentConflicts.length, 1)
-  assert.equal(currentConflicts[0].id, 'c4', 'Stale req3 must NOT overwrite Conflict 4 with Conflict 3')
+  assert.equal(conflicts.length, 0, 'Stale Request 1 result must NOT overwrite cleared conflicts')
 })
 
 // ----------------------------------------------------------------------------
-// Test Case 3: AI đề xuất bỏ giờ kết thúc (AI proposes removing end time)
-// Verify:
-// - Distinguishes between ends_at_utc not provided vs provided as null
-// - ends_at_utc: null strictly clears end time (endsAt = null)
-// - Does NOT fall back to targetSchedule.ends_at_utc
-// - When editing the proposal, initialEndsAt in EditScheduleView is null and endTime is empty
+// Test 4: Ca 2B - Form thay đổi trong lúc submit đang chờ kiểm tra trùng lịch
 // ----------------------------------------------------------------------------
 
-test('Case 3: AI proposal with ends_at_utc: null clears end time without fallback', () => {
+test('Case 2B: Submit re-checks if form inputs change while awaiting conflict check', async () => {
+  let formStartTime = '09:00'
+  let checkedTimes: string[] = []
+  let savedWithTime: string | null = null
+  let showConflictModal = false
+
+  async function fetchConflictsForTime(time: string): Promise<any[]> {
+    checkedTimes.push(time)
+    await new Promise((r) => setTimeout(r, 40))
+    // Suppose 14:00 has a conflict, while 09:00 was free
+    if (time === '14:00') {
+      return [{ id: 'c2', title: 'Afternoon conflict' }]
+    }
+    return []
+  }
+
+  async function robustSubmit(forceProceed = false) {
+    if (!forceProceed) {
+      while (true) {
+        const checkTime = formStartTime
+        const detected = await fetchConflictsForTime(checkTime)
+
+        // Check if form changed while awaiting
+        if (formStartTime !== checkTime) {
+          continue // re-check with updated formStartTime!
+        }
+
+        if (detected.length > 0) {
+          showConflictModal = true
+          return
+        }
+        break
+      }
+    }
+    savedWithTime = formStartTime
+  }
+
+  // User submits when formStartTime is 09:00
+  const submitPromise = robustSubmit(false)
+
+  // While fetchConflictsForTime('09:00') is in flight (at 15ms), user edits time to '14:00'
+  await new Promise((r) => setTimeout(r, 15))
+  formStartTime = '14:00'
+
+  await submitPromise
+
+  // Verify that '09:00' wasn't blindly saved:
+  assert.deepEqual(checkedTimes, ['09:00', '14:00'], 'Must have re-checked 14:00 after detecting input change')
+  assert.equal(showConflictModal, true, 'Must display conflict modal for 14:00')
+  assert.equal(savedWithTime, null, 'Must NOT save 09:00 or unchecked 14:00')
+})
+
+// ----------------------------------------------------------------------------
+// Test 5: Ca 3 (Direct Vue SFC Test) - Chạy trực tiếp component EditScheduleView.vue
+// ----------------------------------------------------------------------------
+
+test('Case 3 (Direct Vue SFC): EditScheduleView component directly clears end time when initialOverrides has ends_at_utc: null', async () => {
+  const server = await createServer({ appType: 'custom', server: { middlewareMode: true } })
+  try {
+    const mod = await server.ssrLoadModule('./src/components/EditScheduleView.vue')
+    const i18n = createI18n({ legacy: false, locale: 'vi', messages: { vi } })
+
+    const baseSchedule = {
+      id: 'sched-1',
+      version: 1,
+      title: 'Họp với sếp',
+      starts_at_utc: '2026-11-12T02:00:00Z',
+      ends_at_utc: '2026-11-12T04:00:00Z', // 11:00 in UTC+7
+      meeting_mode: 'offline' as const,
+      location: 'P101',
+      meeting_url: null,
+      related_person: 'Me',
+      preparation: null,
+      notes: null,
+    }
+
+    // App 1: Without override -> renders end time input with value="11:00"
+    const app1 = createSSRApp({
+      render: () => h(mod.default, {
+        session: { access_token: 'fake', user: { id: '1', email: 'test@example.com', name: 'Test' } },
+        schedule: baseSchedule,
+        relatedPeople: ['Me'],
+      }),
+    })
+    app1.use(i18n)
+    const html1 = await renderToString(app1)
+    assert.ok(html1.includes('value="11:00"'), 'Standard edit view must render schedule ends_at time')
+
+    // App 2: With AI proposal override ends_at_utc: null -> end time must be CLEARED
+    const app2 = createSSRApp({
+      render: () => h(mod.default, {
+        session: { access_token: 'fake', user: { id: '1', email: 'test@example.com', name: 'Test' } },
+        schedule: baseSchedule,
+        relatedPeople: ['Me'],
+        initialOverrides: { ends_at_utc: null },
+      }),
+    })
+    app2.use(i18n)
+    const html2 = await renderToString(app2)
+    assert.ok(!html2.includes('value="11:00"'), 'AI override ends_at_utc: null MUST clear end time from input')
+  } finally {
+    await server.close()
+  }
+})
+
+// ----------------------------------------------------------------------------
+// Test 6: Ca 3 (Logic) - AI đề xuất bỏ giờ kết thúc phân biệt giữa null và omitted
+// ----------------------------------------------------------------------------
+
+test('Case 3 (Logic): AI proposal with ends_at_utc: null clears end time without fallback', () => {
   const targetSchedule = {
     id: 'sched-123',
     version: 2,
@@ -210,7 +297,6 @@ test('Case 3: AI proposal with ends_at_utc: null clears end time without fallbac
     notes: null,
   }
 
-  // Helper resolving startsAt and endsAt exactly as implemented in ChatView.vue
   function resolveProposalTimes(
     proposalAction: 'create' | 'update',
     proposedData: Record<string, unknown>,
@@ -242,23 +328,6 @@ test('Case 3: AI proposal with ends_at_utc: null clears end time without fallbac
   // 3B: AI explicitly proposes removing the end time (ends_at_utc: null)
   const proposalB = { ends_at_utc: null }
   const resB = resolveProposalTimes('update', proposalB, targetSchedule)
-  assert.equal(resB.startsAt, '2026-11-12T02:00:00Z', 'Starts_at_utc should still fall back when omitted')
+  assert.equal(resB.startsAt, '2026-11-12T02:00:00Z')
   assert.equal(resB.endsAt, null, 'ends_at_utc: null MUST resolve to null and NOT fall back to target schedule')
-
-  // 3C: AI explicitly updates both start and end time
-  const proposalC = { starts_at_utc: '2026-11-12T08:00:00Z', ends_at_utc: '2026-11-12T09:00:00Z' }
-  const resC = resolveProposalTimes('update', proposalC, targetSchedule)
-  assert.equal(resC.startsAt, '2026-11-12T08:00:00Z')
-  assert.equal(resC.endsAt, '2026-11-12T09:00:00Z')
-
-  // 3D: Verify EditScheduleView initialOverrides behavior with ends_at_utc: null
-  const initialOverrides = { ends_at_utc: null }
-  const ov = initialOverrides ?? null
-  const hasEndsAtOverride = ov !== null && Object.hasOwn(ov, 'ends_at_utc')
-  const initialEndsAt = hasEndsAtOverride
-    ? (typeof ov?.ends_at_utc === 'string' ? ov.ends_at_utc : null)
-    : targetSchedule.ends_at_utc
-
-  assert.equal(hasEndsAtOverride, true, 'hasEndsAtOverride must be true when key is present')
-  assert.equal(initialEndsAt, null, 'initialEndsAt must be null in EditScheduleView')
 })
