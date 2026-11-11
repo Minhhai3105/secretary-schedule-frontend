@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import PasswordField from '../components/PasswordField.vue'
 import { PasswordResetError, resetPassword } from '../services/auth'
+import { passwordError } from '../utils/password'
 
 const props = defineProps<{ token: string }>()
 const emit = defineEmits<{ loginRequested: []; forgotRequested: [] }>()
@@ -17,12 +18,9 @@ const errorKey = ref('')
 async function submit() {
   if (loading.value || invalidToken.value) return
   errorKey.value = ''
-  if (password.value.length < 8 || password.value.length > 128) {
-    errorKey.value = 'reset.passwordLength'
-    return
-  }
-  if (password.value !== confirmPassword.value) {
-    errorKey.value = 'reset.passwordMismatch'
+  const invalidPassword = passwordError(password.value, confirmPassword.value)
+  if (invalidPassword) {
+    errorKey.value = invalidPassword === 'length' ? 'reset.passwordLength' : 'reset.passwordMismatch'
     return
   }
 

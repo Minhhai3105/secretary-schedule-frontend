@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import PasswordField from '../components/PasswordField.vue'
 import { register, RegisterError } from '../services/auth'
+import { passwordError } from '../utils/password'
 
 const { t } = useI18n({ useScope: 'global' })
 const emit = defineEmits<{ loginRequested: [] }>()
@@ -22,12 +23,9 @@ async function submit() {
     error.value = 'register.required'
     return
   }
-  if (password.value.length < 8 || password.value.length > 128) {
-    error.value = 'register.passwordLength'
-    return
-  }
-  if (password.value !== confirmPassword.value) {
-    error.value = 'register.passwordMismatch'
+  const invalidPassword = passwordError(password.value, confirmPassword.value)
+  if (invalidPassword) {
+    error.value = invalidPassword === 'length' ? 'register.passwordLength' : 'register.passwordMismatch'
     return
   }
 

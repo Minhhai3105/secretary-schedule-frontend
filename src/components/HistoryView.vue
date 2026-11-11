@@ -3,8 +3,9 @@ import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { AuthError, refreshSession, type LoginResult } from '../services/auth'
 import { listScheduleHistory, ScheduleLoadError, type HistoryType, type Schedule, type ScheduleHistoryPage } from '../services/schedules'
-import { vietnamDate, vietnamTime } from '../utils/week'
+import { vietnamTime } from '../utils/week'
 import { isSelf } from '../utils/relatedPerson'
+import { formatVietnamDate } from '../utils/date'
 
 const props = defineProps<{ session: LoginResult }>()
 const emit = defineEmits<{
@@ -23,10 +24,7 @@ const loading = ref(false)
 const errorKey = ref('')
 
 function dateLabel(schedule: Schedule): string {
-  const day = vietnamDate(schedule.starts_at_utc)
-  return locale.value === 'vi'
-    ? `${day.slice(8)}/${day.slice(5, 7)}/${day.slice(0, 4)}`
-    : `${day.slice(5, 7)}/${day.slice(8)}/${day.slice(0, 4)}`
+  return formatVietnamDate(schedule.starts_at_utc, locale.value === 'vi' ? 'vi' : 'en')
 }
 
 async function load() {

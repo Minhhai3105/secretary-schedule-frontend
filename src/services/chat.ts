@@ -20,6 +20,19 @@ export interface ChatMessageResponse {
   proposal: ChatProposal | null
 }
 
+export interface ChatHistoryItem extends ChatTurn {
+  id: string
+  created_at_utc: string
+  schedules: Schedule[]
+  proposal: ChatProposal | null
+  proposal_state: 'pending' | 'confirmed' | 'cancelled' | 'stale' | null
+}
+
+export interface ChatHistoryPage {
+  messages: ChatHistoryItem[]
+  next_cursor: string | null
+}
+
 type ChatErrorCode = 'network' | 'unauthorized' | 'notFound' | 'conflict' | 'validation' | 'failed'
 
 export class ChatError extends Error {
@@ -61,8 +74,28 @@ async function post<T>(accessToken: string, path: string, body?: object): Promis
   }
 }
 
-export function sendChatMessage(accessToken: string, message: string, history: ChatTurn[]): Promise<ChatMessageResponse> {
-  return post(accessToken, '/api/chat/messages', { message, history: history.slice(-5) })
+export async function listChatMessages(accessToken: string, cursor?: string): Promise<ChatHistoryPage> {
+  const params = new URLSearchParams({ limit: '20' })
+  if (cursor) params.set('cursor', cursor)
+  let response: Response
+  try {
+    response = await fetch(`${apiBaseUrl}/api/chat/messages?${params}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
+  } catch {
+    throw new ChatError('network')
+  }
+  if (response.status === 401) throw new ChatError('unauthorized')
+  if (!response.ok) throw new ChatError('failed')
+  try {
+    return (await response.json()) as ChatHistoryPage
+  } catch {
+    throw new ChatError('failed')
+  }
+}
+
+export function sendChatMessage(accessToken: string, message: string): Promise<ChatMessageResponse> {
+  return post(accessToken, '/api/chat/messages', { message })
 }
 
 export function confirmChatProposal(accessToken: string, id: string): Promise<{ schedule: Schedule }> {

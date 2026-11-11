@@ -13,6 +13,7 @@ import ChatView from '../components/ChatView.vue'
 import LogoutConfirmModal from '../components/LogoutConfirmModal.vue'
 import { mondayOf, shiftDate, todayInVietnam, vietnamDate, vietnamTime, weekDates } from '../utils/week'
 import { isSelf, relatedPeopleOptions } from '../utils/relatedPerson'
+import { formatCalendarDate, formatVietnamDate } from '../utils/date'
 
 type Section = 'week' | 'history' | 'reminders' | 'emails'
 
@@ -98,9 +99,7 @@ function timeLabel(schedule: Schedule): string {
   const end = vietnamTime(schedule.ends_at_utc)
   const endDate = vietnamDate(schedule.ends_at_utc)
   if (endDate === vietnamDate(schedule.starts_at_utc)) return `${start}–${end}`
-  const shortDate = locale.value === 'vi'
-    ? `${endDate.slice(8)}/${endDate.slice(5, 7)}`
-    : `${endDate.slice(5, 7)}/${endDate.slice(8)}`
+  const shortDate = formatVietnamDate(schedule.ends_at_utc, locale.value === 'vi' ? 'vi' : 'en', false)
   return `${start}–${shortDate} ${end}`
 }
 
@@ -529,10 +528,10 @@ onUnmounted(() => {
               <section v-for="(day, index) in days" :key="day" class="week-day" :class="{ 'week-day-today': day === todayInVietnam() }">
                 <div class="week-day-heading">
                   <button class="week-day-add" type="button" :disabled="loading"
-                    :aria-label="`${t('week.addForDay')} ${day.slice(8)}/${day.slice(5, 7)}`"
+                    :aria-label="`${t('week.addForDay')} ${formatCalendarDate(day, locale === 'vi' ? 'vi' : 'en', false)}`"
                     :title="t('week.addForDay')" @click="openCreateForDate(day)">+</button>
                   <span>{{ t(weekdayKeys[index]) }}</span>
-                  <strong>{{ day.slice(8) }}/{{ day.slice(5, 7) }}</strong>
+                  <strong>{{ formatCalendarDate(day, locale === 'vi' ? 'vi' : 'en', false) }}</strong>
                   <small v-if="day === todayInVietnam()">{{ t('week.todayBadge') }}</small>
                 </div>
                 <div class="week-day-events">

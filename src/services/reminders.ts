@@ -38,11 +38,11 @@ export async function getReminderSettings(accessToken: string): Promise<Reminder
   }
 }
 
-export async function putReminderSettings(accessToken: string, settings: ReminderSettings): Promise<ReminderSettings> {
+export async function patchReminderSettings(accessToken: string, settings: Partial<ReminderSettings>): Promise<ReminderSettings> {
   let response: Response
   try {
     response = await fetch(`${apiBaseUrl}/api/reminder-settings`, {
-      method: 'PUT',
+      method: 'PATCH',
       headers: {
         Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json',

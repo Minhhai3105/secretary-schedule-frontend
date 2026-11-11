@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import type { Schedule } from '../services/schedules'
 import { vietnamDate, vietnamTime } from '../utils/week'
 import { isSelf } from '../utils/relatedPerson'
+import { formatVietnamDate } from '../utils/date'
 
 const props = defineProps<{ schedule: Schedule | null; loading: boolean; errorKey: string; cancelling: boolean; cancelErrorKey: string; backKey: string }>()
 const emit = defineEmits<{ back: []; retry: []; edit: []; cancelConfirmed: [] }>()
@@ -17,10 +18,7 @@ function reloadDetail() {
 
 const dateLabel = computed(() => {
   if (!props.schedule) return ''
-  const date = vietnamDate(props.schedule.starts_at_utc)
-  return locale.value === 'vi'
-    ? `${date.slice(8)}/${date.slice(5, 7)}/${date.slice(0, 4)}`
-    : `${date.slice(5, 7)}/${date.slice(8)}/${date.slice(0, 4)}`
+  return formatVietnamDate(props.schedule.starts_at_utc, locale.value === 'vi' ? 'vi' : 'en')
 })
 
 const timeLabel = computed(() => {
@@ -30,9 +28,7 @@ const timeLabel = computed(() => {
   const end = vietnamTime(props.schedule.ends_at_utc)
   const endDate = vietnamDate(props.schedule.ends_at_utc)
   if (endDate === vietnamDate(props.schedule.starts_at_utc)) return `${dateLabel.value} · ${start}–${end}`
-  const endLabel = locale.value === 'vi'
-    ? `${endDate.slice(8)}/${endDate.slice(5, 7)}/${endDate.slice(0, 4)}`
-    : `${endDate.slice(5, 7)}/${endDate.slice(8)}/${endDate.slice(0, 4)}`
+  const endLabel = formatVietnamDate(props.schedule.ends_at_utc, locale.value === 'vi' ? 'vi' : 'en')
   return `${dateLabel.value} ${start} – ${endLabel} ${end}`
 })
 

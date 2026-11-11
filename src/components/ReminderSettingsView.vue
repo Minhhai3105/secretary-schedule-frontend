@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { AuthError, refreshSession, type LoginResult } from '../services/auth'
-import { getReminderSettings, putReminderSettings, ReminderError, type ReminderSettings } from '../services/reminders'
+import { getReminderSettings, patchReminderSettings, ReminderError, type ReminderSettings } from '../services/reminders'
 
 const props = defineProps<{ session: LoginResult }>()
 const emit = defineEmits<{
@@ -72,7 +72,7 @@ async function load() {
 }
 
 async function save() {
-  if (saving.value || loading.value || !dirty.value) return
+  if (saving.value || loading.value || !dirty.value || !saved.value) return
   errorKey.value = ''
   savedNotice.value = false
   const time = dailyTime.value.trim()
@@ -81,17 +81,16 @@ async function save() {
     errorKey.value = 'reminders.validationError'
     return
   }
-  const payload: ReminderSettings = {
-    daily_enabled: dailyEnabled.value,
-    daily_time: time,
-    near_enabled: nearEnabled.value,
-    lead_minutes: minutes,
-  }
+  const payload: Partial<ReminderSettings> = {}
+  if (dailyEnabled.value !== saved.value.daily_enabled) payload.daily_enabled = dailyEnabled.value
+  if (time !== saved.value.daily_time.slice(0, 5)) payload.daily_time = time
+  if (nearEnabled.value !== saved.value.near_enabled) payload.near_enabled = nearEnabled.value
+  if (minutes !== saved.value.lead_minutes) payload.lead_minutes = minutes
   saving.value = true
   try {
     let settings: ReminderSettings
     try {
-      settings = await putReminderSettings(props.session.access_token, payload)
+      settings = await patchReminderSettings(props.session.access_token, payload)
     } catch (cause) {
       if (!(cause instanceof ReminderError) || cause.code !== 'unauthorized') throw cause
       const renewed = await refreshSession()
@@ -100,7 +99,7 @@ async function save() {
         return
       }
       emit('sessionUpdated', renewed)
-      settings = await putReminderSettings(renewed.access_token, payload)
+      settings = await patchReminderSettings(renewed.access_token, payload)
     }
     applySettings(settings)
     savedNotice.value = true

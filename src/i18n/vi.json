@@ -1,4 +1,5 @@
 {
+  "app": { "title": "Lịch trình" },
   "language": {
     "switchTo": "Chuyển sang tiếng Anh"
   },
@@ -308,7 +309,11 @@
     "openBubble": "Mở Trợ lý AI",
     "minimize": "Thu gọn Trợ lý AI",
     "back": "← Về Trợ lý AI",
-    "privacy": "Nội dung chat được gửi đến dịch vụ AI đã cấu hình. Hội thoại chỉ giữ trong tab này; mọi thay đổi lịch cần bạn xác nhận.",
+    "privacy": "Nội dung chat được lưu trong tài khoản của bạn và gửi đến dịch vụ AI đã cấu hình. Mọi thay đổi lịch cần bạn xác nhận.",
+    "loadingHistory": "Đang tải hội thoại…",
+    "loadOlder": "Tải tin nhắn cũ hơn",
+    "historyLoadError": "Không thể tải hội thoại.",
+    "historyNetworkError": "Không thể kết nối để tải hội thoại.",
     "empty": "Bạn có thể hỏi “Tuần này tôi có lịch gì?” hoặc “Tạo lịch họp ngày mai lúc 9 giờ”.",
     "relatedSchedules": "Lịch liên quan",
     "messageLabel": "Tin nhắn",
@@ -335,6 +340,7 @@
     "scheduleId": "Mã lịch",
     "notProvided": "Không có",
     "confirmed": "Đã cập nhật lịch: {title}",
+    "confirmedGeneric": "Đã xác nhận thay đổi lịch.",
     "cancelled": "Đã bỏ đề xuất.",
     "expired": "Đề xuất đã hết hạn. Hãy nhắn lại nếu vẫn muốn thực hiện.",
     "networkError": "Không thể kết nối đến trợ lý. Tin nhắn của bạn vẫn ở ô nhập.",

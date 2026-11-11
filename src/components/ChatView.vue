@@ -3,14 +3,15 @@ import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { AuthError, refreshSession, type LoginResult } from '../services/auth'
 import {
-  cancelChatProposal, ChatError, confirmChatProposal, sendChatMessage,
-  type ChatProposal, type ChatTurn,
+  cancelChatProposal, ChatError, confirmChatProposal, listChatMessages, sendChatMessage,
+  type ChatHistoryItem, type ChatProposal, type ChatTurn,
 } from '../services/chat'
 import { getSchedule, ScheduleLoadError, type Schedule } from '../services/schedules'
 import { isSelf } from '../utils/relatedPerson'
 
 type ProposalState = 'pending' | 'confirmed' | 'cancelled' | 'stale' | 'uncertain'
 interface Message extends ChatTurn {
+  id: string
   schedules?: Schedule[]
   proposal?: ChatProposal | null
   proposalState?: ProposalState
@@ -32,6 +33,10 @@ const { locale, t } = useI18n({ useScope: 'global' })
 const isOpen = ref(false)
 const hasUnread = ref(false)
 const messages = ref<Message[]>([])
+const historyCursor = ref<string | null>(null)
+const historyLoaded = ref(false)
+const loadingHistory = ref(false)
+const historyErrorKey = ref('')
 const draft = ref('')
 const sending = ref(false)
 const processing = ref(false)
@@ -40,6 +45,7 @@ const nowMs = ref(Date.now())
 const chatLogRef = ref<HTMLElement | null>(null)
 const messageInputRef = ref<HTMLTextAreaElement | null>(null)
 let expiryTimer: ReturnType<typeof setInterval> | undefined
+let localMessageId = 0
 const starterKeys = ['chat.suggestions.today', 'chat.suggestions.week', 'chat.suggestions.create']
 const pendingProposal = computed(() => messages.value.some((item) =>
   item.proposal && item.proposalState === 'pending' && !isExpired(item.proposal)))
@@ -58,12 +64,55 @@ function scrollToBottom() {
 function openChat() {
   isOpen.value = true
   hasUnread.value = false
+  if (!historyLoaded.value) void loadHistory(true)
   scrollToBottom()
   void nextTick(() => {
     if (!sending.value && !processing.value && !pendingProposal.value) {
       messageInputRef.value?.focus()
     }
   })
+}
+
+function restoredMessage(item: ChatHistoryItem): Message {
+  return {
+    id: item.id,
+    role: item.role,
+    content: item.content,
+    schedules: item.schedules,
+    proposal: item.proposal,
+    proposalState: item.proposal_state ?? undefined,
+  }
+}
+
+async function loadHistory(firstPage = false) {
+  if (loadingHistory.value) return
+  loadingHistory.value = true
+  historyErrorKey.value = ''
+  const cursor = firstPage ? undefined : historyCursor.value ?? undefined
+  const log = chatLogRef.value
+  const previousHeight = log?.scrollHeight ?? 0
+  const previousTop = log?.scrollTop ?? 0
+  try {
+    const page = await authorized((token) => listChatMessages(token, cursor))
+    const older = page.messages.slice().reverse().map(restoredMessage)
+    messages.value = firstPage ? older : [...older, ...messages.value]
+    historyCursor.value = page.next_cursor
+    historyLoaded.value = true
+    await nextTick()
+    if (firstPage) scrollToBottom()
+    else if (log) log.scrollTop = log.scrollHeight - previousHeight + previousTop
+  } catch (cause) {
+    if (cause instanceof ChatError && cause.code === 'unauthorized') {
+      emit('sessionExpired')
+    } else if ((cause instanceof ChatError && cause.code === 'network')
+      || (cause instanceof AuthError && cause.code === 'restoreNetwork')) {
+      historyErrorKey.value = 'chat.historyNetworkError'
+    } else {
+      historyErrorKey.value = 'chat.historyLoadError'
+    }
+  } finally {
+    loadingHistory.value = false
+  }
 }
 
 function closeChat() {
@@ -141,20 +190,19 @@ async function authorized<T>(run: (accessToken: string) => Promise<T>): Promise<
 
 async function send() {
   const message = draft.value.trim()
-  if (sending.value || processing.value || pendingProposal.value || !message) return
+  if (!historyLoaded.value || sending.value || processing.value || pendingProposal.value || !message) return
   sending.value = true
   sendErrorKey.value = ''
-  const history = messages.value.map(({ role, content }) => ({ role, content })).slice(-5)
   scrollToBottom()
   try {
-    const response = await authorized((token) => sendChatMessage(token, message, history))
+    const response = await authorized((token) => sendChatMessage(token, message))
     let targetSchedule: Schedule | null = null
     if (response.proposal?.schedule_id) {
       targetSchedule = await fetchTargetSchedule(response.proposal.schedule_id)
     }
-    messages.value.push({ role: 'user', content: message })
+    messages.value.push({ id: `local-${++localMessageId}`, role: 'user', content: message })
     messages.value.push({
-      role: 'assistant', content: response.answer, schedules: response.schedules,
+      id: `local-${++localMessageId}`, role: 'assistant', content: response.answer, schedules: response.schedules,
       proposal: response.proposal, proposalState: response.proposal ? 'pending' : undefined,
       targetSchedule,
     })
@@ -298,7 +346,14 @@ onUnmounted(() => { if (expiryTimer) clearInterval(expiryTimer) })
       <p class="chat-floating-privacy" role="note">{{ t('chat.privacy') }}</p>
 
       <div ref="chatLogRef" class="workspace-chat-log chat-floating-log" aria-live="polite">
-        <div v-if="messages.length === 0" class="workspace-chat-empty">
+        <button v-if="historyCursor && !loadingHistory" class="btn btn-link btn-sm" type="button"
+          @click="loadHistory()">{{ t('chat.loadOlder') }}</button>
+        <p v-if="loadingHistory" class="workspace-meta small" role="status">{{ t('chat.loadingHistory') }}</p>
+        <div v-if="historyErrorKey" class="alert alert-warning small" role="alert">
+          {{ t(historyErrorKey) }}
+          <button class="btn btn-link btn-sm" type="button" @click="loadHistory(!historyLoaded)">{{ t('common.retry') }}</button>
+        </div>
+        <div v-if="historyLoaded && messages.length === 0" class="workspace-chat-empty">
           <p class="mb-0">{{ t('chat.empty') }}</p>
           <div class="workspace-chat-chips">
             <button v-for="promptKey in starterKeys" :key="promptKey" class="workspace-chat-chip"
@@ -308,7 +363,7 @@ onUnmounted(() => { if (expiryTimer) clearInterval(expiryTimer) })
             </button>
           </div>
         </div>
-        <div v-for="(item, index) in messages" :key="index" class="d-flex"
+        <div v-for="item in messages" :key="item.id" class="d-flex"
           :class="item.role === 'user' ? 'justify-content-end' : 'justify-content-start'">
           <div :class="item.role === 'user' ? 'workspace-chat-bubble-user' : 'workspace-chat-bubble-assistant'">
             <p class="mb-0" style="white-space: pre-wrap">{{ item.content }}</p>
@@ -349,13 +404,14 @@ onUnmounted(() => { if (expiryTimer) clearInterval(expiryTimer) })
               <p class="small workspace-meta mb-2">{{ t('chat.expiresAt') }}: {{ dateTimeLabel(item.proposal.expires_at_utc) }}</p>
               <p v-if="item.proposalErrorKey" class="alert alert-warning small" role="alert">{{ t(item.proposalErrorKey) }}</p>
               <div v-if="item.proposalState === 'confirmed'" class="alert alert-success small mb-0 d-flex align-items-center justify-content-between gap-2 flex-wrap" role="status">
-                <span>{{ t('chat.confirmed', { title: item.confirmedSchedule?.title ?? '' }) }}</span>
+                <span>{{ item.confirmedSchedule ? t('chat.confirmed', { title: item.confirmedSchedule.title }) : t('chat.confirmedGeneric') }}</span>
                 <button v-if="item.confirmedSchedule" class="btn btn-outline-success btn-sm" type="button"
                   @click="openScheduleFromChat(item.confirmedSchedule.id)">
                   {{ t('chat.openSchedule') }}
                 </button>
               </div>
               <p v-else-if="item.proposalState === 'cancelled'" class="workspace-meta small mb-0">{{ t('chat.cancelled') }}</p>
+              <p v-else-if="item.proposalState === 'stale'" class="workspace-meta small mb-0">{{ t('chat.expired') }}</p>
               <p v-else-if="item.proposalState === 'pending' && isExpired(item.proposal)" class="workspace-meta small mb-0">{{ t('chat.expired') }}</p>
               <div v-else-if="item.proposalState === 'pending'" class="d-flex gap-2 flex-wrap">
                 <button class="btn btn-primary btn-sm" type="button" :disabled="processing" @click="processProposal(item, 'confirm')">
@@ -382,11 +438,11 @@ onUnmounted(() => { if (expiryTimer) clearInterval(expiryTimer) })
           <label class="visually-hidden" for="chat-message">{{ t('chat.messageLabel') }}</label>
           <textarea id="chat-message" ref="messageInputRef" v-model="draft" class="form-control chat-floating-input"
             rows="2" maxlength="4000" :placeholder="t('chat.placeholder')"
-            :disabled="sending || processing || pendingProposal" @keydown="onMessageKeydown" />
+            :disabled="!historyLoaded || sending || processing || pendingProposal" @keydown="onMessageKeydown" />
           <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap mt-2">
             <small class="workspace-meta">{{ t('chat.enterHint') }}</small>
             <button class="btn btn-primary btn-sm px-3" type="submit"
-              :disabled="sending || processing || pendingProposal || !draft.trim()">
+              :disabled="!historyLoaded || sending || processing || pendingProposal || !draft.trim()">
               {{ t(sending ? 'chat.sending' : 'chat.send') }}
             </button>
           </div>

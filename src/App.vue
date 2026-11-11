@@ -24,7 +24,10 @@ const restoreError = ref('')
 const logoutError = ref('')
 const loggingOut = ref(false)
 
-watch(locale, (value) => { document.documentElement.lang = value }, { immediate: true })
+watch(locale, (value) => {
+  document.documentElement.lang = value
+  document.title = t('app.title')
+}, { immediate: true })
 
 async function restore() {
   restoring.value = true
