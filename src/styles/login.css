@@ -2,18 +2,18 @@
   display: grid;
   grid-template-columns: minmax(360px, 5fr) minmax(480px, 7fr);
   min-height: 100vh;
-  color: #253248;
+  color: var(--text-main);
 }
 
 .login-intro {
   display: flex;
   flex-direction: column;
   padding: 56px;
-  background: #edf3ff;
+  background: var(--bg-auth-intro);
 }
 
 .brand {
-  color: #245bd3;
+  color: var(--brand-strong);
   font-size: 28px;
   font-weight: 700;
 }
@@ -26,13 +26,14 @@
 .intro-content h1 {
   font-size: clamp(32px, 3vw, 42px);
   font-weight: 700;
+  color: var(--text-heading);
 }
 
 .intro-content > p,
 .benefits li,
 .form-subtitle,
 .timezone-note {
-  color: #667b9b;
+  color: var(--text-muted);
 }
 
 .intro-content > p {
@@ -44,14 +45,15 @@
 .benefits {
   margin-top: 52px;
   padding: 20px 24px;
-  border: 1px solid #dae3f2;
+  border: 1px solid var(--border-color);
   border-radius: 8px;
-  background: #fff;
+  background: var(--bg-surface);
 }
 
 .benefits h2 {
   font-size: 20px;
   font-weight: 700;
+  color: var(--text-heading);
 }
 
 .benefits ul {
@@ -67,6 +69,7 @@
 .benefits li::before {
   content: '✓';
   margin-right: 8px;
+  color: var(--brand-primary);
 }
 
 .login-main {
@@ -74,7 +77,7 @@
   flex-direction: column;
   justify-content: center;
   padding: 56px;
-  background: #f7f9fd;
+  background: var(--bg-auth-main);
 }
 
 .login-form-wrap {
@@ -85,6 +88,7 @@
 .login-form-wrap h2 {
   font-size: 32px;
   font-weight: 700;
+  color: var(--text-heading);
 }
 
 .form-subtitle {
@@ -93,6 +97,7 @@
 
 .login-form-wrap .form-label {
   font-weight: 600;
+  color: var(--text-main);
 }
 
 .login-form-wrap .form-control {
@@ -101,7 +106,6 @@
 
 .login-form-wrap .btn {
   min-height: 42px;
-  background: #245bd3;
 }
 
 .timezone-note {

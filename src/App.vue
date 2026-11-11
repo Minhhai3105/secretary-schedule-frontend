@@ -2,6 +2,7 @@
 import { onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import LanguageSwitch from './components/LanguageSwitch.vue'
+import ThemeSwitch from './components/ThemeSwitch.vue'
 import LoginView from './views/LoginView.vue'
 import RegisterView from './views/RegisterView.vue'
 import ForgotPasswordView from './views/ForgotPasswordView.vue'
@@ -103,7 +104,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="language-switch-position"><LanguageSwitch /></div>
+  <div class="language-switch-position"><ThemeSwitch /><LanguageSwitch /></div>
   <main v-if="restoring" class="container py-5" role="status" aria-live="polite">
     {{ t('session.restoring') }}
   </main>
@@ -124,5 +125,5 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.language-switch-position { position: fixed; top: 16px; right: 24px; z-index: 10; }
+.language-switch-position { position: fixed; top: 16px; right: 24px; z-index: 10; display: flex; align-items: center; gap: 8px; }
 </style>

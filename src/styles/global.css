@@ -1,0 +1,119 @@
+:root,
+[data-theme="light"] {
+  color-scheme: light;
+  --bg-canvas: #f5f7fb;
+  --bg-auth-main: #f7f9fd;
+  --bg-auth-intro: #edf3ff;
+  --bg-surface: #ffffff;
+  --bg-subtle: #f8fafd;
+  --bg-hover: #f2f6fc;
+  --bg-today: #f3f7ff;
+  --text-main: #253248;
+  --text-heading: #243247;
+  --text-muted: #72829a;
+  --text-secondary: #687991;
+  --text-subtle: #52627a;
+  --text-placeholder: #8a98ad;
+  --border-color: #dce4ef;
+  --border-subtle: #edf1f6;
+  --brand-primary: #1755c4;
+  --brand-strong: #245bd3;
+  --brand-soft: #eaf2ff;
+  --brand-border: #b7d0ff;
+  --event-online-bg: #eaf2ff;
+  --event-online-text: #1755c4;
+  --event-offline-bg: #edf8f3;
+  --event-offline-text: #138256;
+  --event-mode-bg: #ffffff;
+  --badge-success-bg: #e9f7ef;
+  --badge-success-text: #13794e;
+  --badge-danger-bg: #fdecec;
+  --badge-danger-text: #b42318;
+  --badge-warning-bg: #fff6e5;
+  --badge-warning-text: #9a5b13;
+  --badge-neutral-bg: #eef2f7;
+  --badge-neutral-text: #52627a;
+  --failed-item-bg: #fff8f8;
+  --failed-item-border: #f1b6b6;
+  --shadow-card: 0 2px 8px rgba(23, 85, 196, 0.06);
+  --shadow-modal: 0 16px 40px rgba(20, 32, 52, 0.18);
+  --shadow-floating: 0 20px 48px rgba(20, 32, 52, 0.22);
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --bg-canvas: #0f172a;
+  --bg-auth-main: #0f172a;
+  --bg-auth-intro: #162238;
+  --bg-surface: #1e293b;
+  --bg-subtle: #162032;
+  --bg-hover: #26354d;
+  --bg-today: #17253f;
+  --text-main: #e2e8f0;
+  --text-heading: #f8fafc;
+  --text-muted: #94a3b8;
+  --text-secondary: #94a3b8;
+  --text-subtle: #cbd5e1;
+  --text-placeholder: #64748b;
+  --border-color: #334155;
+  --border-subtle: #293548;
+  --brand-primary: #60a5fa;
+  --brand-strong: #3b82f6;
+  --brand-soft: #1e3a5f;
+  --brand-border: #2563eb;
+  --event-online-bg: #1b3152;
+  --event-online-text: #93c5fd;
+  --event-offline-bg: #14352b;
+  --event-offline-text: #6ee7b7;
+  --event-mode-bg: #0f172a;
+  --badge-success-bg: #133829;
+  --badge-success-text: #6ee7b7;
+  --badge-danger-bg: #3f1a1e;
+  --badge-danger-text: #fca5a5;
+  --badge-warning-bg: #3d2b12;
+  --badge-warning-text: #fcd34d;
+  --badge-neutral-bg: #334155;
+  --badge-neutral-text: #cbd5e1;
+  --failed-item-bg: #2b1820;
+  --failed-item-border: #7f1d1d;
+  --shadow-card: 0 4px 12px rgba(2, 6, 23, 0.45);
+  --shadow-modal: 0 18px 44px rgba(2, 6, 23, 0.65);
+  --shadow-floating: 0 22px 52px rgba(2, 6, 23, 0.72);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+  margin: 0;
+  background-color: var(--bg-canvas);
+  color: var(--text-main);
+  transition: background-color 0.18s ease, color 0.18s ease;
+}
+
+[data-theme="dark"] .form-control,
+[data-theme="dark"] .form-select {
+  background-color: var(--bg-subtle);
+  border-color: var(--border-color);
+  color: var(--text-main);
+}
+
+[data-theme="dark"] .form-control::placeholder {
+  color: var(--text-placeholder);
+}
+
+[data-theme="dark"] .btn-outline-secondary {
+  border-color: var(--border-color);
+  color: var(--text-main);
+}
+
+[data-theme="dark"] .btn-outline-secondary:hover:not(:disabled) {
+  background-color: var(--bg-hover);
+  border-color: var(--brand-border);
+  color: var(--text-main);
+}

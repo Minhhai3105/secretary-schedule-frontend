@@ -16,7 +16,7 @@ const { locale, t } = useI18n({ useScope: 'global' })
 </template>
 
 <style scoped>
-.language-switch { white-space: nowrap; background: white; }
+.language-switch { white-space: nowrap; background: var(--bg-surface); border-color: var(--border-color); color: var(--text-main); }
 .language-switch span { padding: 0 2px; }
-.language-switch .active { color: #245bd3; font-weight: 700; }
+.language-switch .active { color: var(--brand-primary); font-weight: 700; }
 </style>
