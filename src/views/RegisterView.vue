@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useI18n } from 'vue-i18n'
+import PasswordField from '../components/PasswordField.vue'
 import { register, RegisterError } from '../services/auth'
 
+const { t } = useI18n({ useScope: 'global' })
 const emit = defineEmits<{ loginRequested: [] }>()
 const name = ref('')
 const email = ref('')
@@ -16,15 +19,15 @@ async function submit() {
   error.value = ''
 
   if (!name.value.trim() || !email.value.trim() || !password.value || !confirmPassword.value) {
-    error.value = 'Vui lòng nhập đầy đủ thông tin.'
+    error.value = 'register.required'
     return
   }
   if (password.value.length < 8 || password.value.length > 128) {
-    error.value = 'Mật khẩu phải có từ 8 đến 128 ký tự.'
+    error.value = 'register.passwordLength'
     return
   }
   if (password.value !== confirmPassword.value) {
-    error.value = 'Mật khẩu nhập lại không khớp.'
+    error.value = 'register.passwordMismatch'
     return
   }
 
@@ -35,9 +38,7 @@ async function submit() {
     password.value = ''
     confirmPassword.value = ''
   } catch (cause) {
-    error.value = cause instanceof RegisterError
-      ? cause.message
-      : 'Đăng ký chưa thành công. Vui lòng thử lại.'
+    error.value = cause instanceof RegisterError ? `errors.${cause.code}` : 'errors.registerFailed'
   } finally {
     loading.value = false
   }
@@ -47,16 +48,16 @@ async function submit() {
 <template>
   <div class="login-layout">
     <aside class="login-intro">
-      <div class="brand">Lịch trình</div>
+      <div class="brand">{{ t('intro.brand') }}</div>
       <div class="intro-content">
-        <h1>Chủ động mỗi ngày.</h1>
-        <p>Sắp xếp lịch cá nhân, chuẩn bị trước cuộc họp và nhận email nhắc đúng lúc.</p>
+        <h1>{{ t('intro.headline') }}</h1>
+        <p>{{ t('intro.description') }}</p>
         <div class="benefits">
-          <h2>Một nơi cho mọi lịch hẹn</h2>
+          <h2>{{ t('intro.benefitsTitle') }}</h2>
           <ul>
-            <li>Xem lịch cả tuần trong một màn hình</li>
-            <li>Nhắc việc qua email</li>
-            <li>Tạo lịch nhanh với trợ lý AI</li>
+            <li>{{ t('intro.week') }}</li>
+            <li>{{ t('intro.reminders') }}</li>
+            <li>{{ t('intro.assistant') }}</li>
           </ul>
         </div>
       </div>
@@ -65,43 +66,41 @@ async function submit() {
     <main class="login-main">
       <div class="login-form-wrap">
         <template v-if="completedEmail">
-          <h2>Tạo tài khoản thành công</h2>
-          <p class="form-subtitle">Tài khoản {{ completedEmail }} đã sẵn sàng.</p>
-          <button class="btn btn-primary" type="button" @click="emit('loginRequested')">Đến trang đăng nhập</button>
+          <h2>{{ t('register.successTitle') }}</h2>
+          <p class="form-subtitle">{{ t('register.successDescription', { email: completedEmail }) }}</p>
+          <button class="btn btn-primary" type="button" @click="emit('loginRequested')">{{ t('register.goToLogin') }}</button>
         </template>
         <template v-else>
-          <h2>Tạo tài khoản</h2>
-          <p class="form-subtitle register-subtitle">Email đăng ký cũng là địa chỉ nhận nhắc lịch.</p>
+          <h2>{{ t('register.title') }}</h2>
+          <p class="form-subtitle register-subtitle">{{ t('register.subtitle') }}</p>
           <form @submit.prevent="submit">
             <div class="mb-3">
-              <label class="form-label" for="register-name">Họ và tên</label>
+              <label class="form-label" for="register-name">{{ t('register.name') }}</label>
               <input id="register-name" v-model="name" class="form-control" type="text" autocomplete="name"
-                placeholder="Nhập họ và tên" maxlength="255" required :disabled="loading" />
+                :placeholder="t('register.namePlaceholder')" maxlength="255" required :disabled="loading" />
             </div>
             <div class="mb-3">
-              <label class="form-label" for="register-email">Email</label>
+              <label class="form-label" for="register-email">{{ t('common.email') }}</label>
               <input id="register-email" v-model="email" class="form-control" type="email" autocomplete="email"
-                placeholder="ban@example.com" maxlength="255" required :disabled="loading" />
+                :placeholder="t('common.emailPlaceholder')" maxlength="255" required :disabled="loading" />
             </div>
             <div class="mb-3">
-              <label class="form-label" for="register-password">Mật khẩu</label>
-              <input id="register-password" v-model="password" class="form-control" type="password"
-                autocomplete="new-password" minlength="8" maxlength="128" required :disabled="loading" />
+              <PasswordField id="register-password" v-model="password" :label="t('common.password')"
+                autocomplete="new-password" :minlength="8" :maxlength="128" :disabled="loading" />
             </div>
             <div class="mb-4">
-              <label class="form-label" for="register-confirm">Nhập lại mật khẩu</label>
-              <input id="register-confirm" v-model="confirmPassword" class="form-control" type="password"
-                autocomplete="new-password" required :disabled="loading" />
+              <PasswordField id="register-confirm" v-model="confirmPassword" :label="t('register.confirmPassword')"
+                autocomplete="new-password" :disabled="loading" />
             </div>
             <button class="btn btn-primary w-100" type="submit" :disabled="loading">
-              {{ loading ? 'Đang đăng ký…' : 'Đăng ký' }}
+              {{ t(loading ? 'register.submitting' : 'register.submit') }}
             </button>
-            <p class="text-center mt-3 mb-0">Đã có tài khoản? <button class="btn btn-link p-0 align-baseline" type="button" @click="emit('loginRequested')">Đăng nhập</button></p>
-            <p v-if="error" class="alert alert-danger mt-4" role="alert" aria-live="polite">{{ error }}</p>
+            <p class="text-center mt-3 mb-0">{{ t('register.hasAccount') }} <button class="btn btn-link p-0 align-baseline" type="button" @click="emit('loginRequested')">{{ t('register.login') }}</button></p>
+            <p v-if="error" class="alert alert-danger mt-4" role="alert" aria-live="polite">{{ t(error) }}</p>
           </form>
         </template>
       </div>
-      <p class="timezone-note">Thời gian hiển thị theo múi giờ Việt Nam.</p>
+      <p class="timezone-note">{{ t('intro.timezone') }}</p>
     </main>
   </div>
 </template>
