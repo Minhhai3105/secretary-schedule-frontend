@@ -1,0 +1,34 @@
+.workspace-page { max-width: 1040px; color: #253248; }
+.workspace-header { margin-bottom: 20px; }
+.workspace-header h1 { margin: 0; font-size: 28px; font-weight: 700; color: #253248; }
+.workspace-header p { margin: 4px 0 0; color: #72829a; font-size: 14px; }
+.workspace-card { padding: 22px 24px; border: 1px solid #dce4ef; border-radius: 12px; background: #fff; }
+.workspace-filter-bar { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; padding: 16px 18px; margin-bottom: 16px; border: 1px solid #dce4ef; border-radius: 10px; background: #fff; }
+.workspace-filter-bar .form-label { margin-bottom: 4px; color: #52627a; font-size: 13px; font-weight: 600; }
+.workspace-pills { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+.workspace-pill { padding: 6px 14px; border: 1px solid #dce4ef; border-radius: 8px; background: #fff; color: #253248; font-size: 13px; font-weight: 600; cursor: pointer; }
+.workspace-pill:hover:not(:disabled) { background: #f2f6fc; }
+.workspace-pill-active, .workspace-pill-active:hover:not(:disabled) { border-color: #b7d0ff; background: #eaf2ff; color: #1755c4; }
+.workspace-list { display: flex; flex-direction: column; gap: 10px; }
+.workspace-list-item { width: 100%; padding: 16px 18px; border: 1px solid #dce4ef; border-radius: 10px; background: #fff; color: #253248; text-align: left; transition: border-color .15s ease, box-shadow .15s ease; }
+.workspace-list-item:hover { border-color: #b7d0ff; box-shadow: 0 2px 8px rgba(23, 85, 196, 0.06); }
+.workspace-list-item-failed { border-color: #f1b6b6; background: #fff8f8; }
+.workspace-badge { display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; line-height: 1.2; }
+.workspace-badge-success { background: #e9f7ef; color: #13794e; }
+.workspace-badge-danger { background: #fdecec; color: #b42318; }
+.workspace-badge-warning { background: #fff6e5; color: #9a5b13; }
+.workspace-badge-neutral { background: #eef2f7; color: #52627a; }
+.workspace-meta { color: #687991; font-size: 13px; }
+.workspace-chat-log { display: flex; flex-direction: column; gap: 14px; min-height: 320px; max-height: 500px; overflow-y: auto; padding: 20px; margin-bottom: 16px; border: 1px solid #dce4ef; border-radius: 12px; background: #fff; }
+.workspace-chat-empty { margin: auto; max-width: 560px; padding: 24px 12px; color: #687991; text-align: center; }
+.workspace-chat-chips { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+.workspace-chat-chip { padding: 7px 13px; border: 1px solid #b7d0ff; border-radius: 999px; background: #f3f7ff; color: #1755c4; font-size: 13px; font-weight: 600; cursor: pointer; }
+.workspace-chat-chip:hover:not(:disabled) { background: #eaf2ff; }
+.workspace-chat-bubble-user { max-width: 82%; padding: 12px 16px; border-radius: 14px 14px 4px 14px; background: #1755c4; color: #fff; overflow-wrap: anywhere; }
+.workspace-chat-bubble-assistant { max-width: 86%; padding: 14px 16px; border: 1px solid #dce4ef; border-radius: 14px 14px 14px 4px; background: #f8fafd; color: #253248; overflow-wrap: anywhere; }
+.workspace-proposal-card { margin-top: 12px; padding: 14px 16px; border: 1px solid #b7d0ff; border-radius: 10px; background: #fff; color: #253248; }
+.workspace-modal-backdrop { position: fixed; inset: 0; z-index: 1050; display: grid; place-items: center; padding: 16px; background: rgba(36, 50, 71, 0.6); }
+.workspace-modal { width: min(100%, 480px); padding: 28px; border: 1px solid #dce3ee; border-radius: 12px; background: #fff; color: #253248; box-shadow: 0 16px 40px rgba(20, 32, 52, 0.18); }
+.workspace-modal h2 { margin: 0 0 10px; font-size: 22px; font-weight: 700; color: #243247; }
+.workspace-modal p { margin: 0 0 22px; color: #687b96; font-size: 15px; line-height: 1.55; }
+.workspace-modal-actions { display: flex; gap: 12px; justify-content: flex-end; flex-wrap: wrap; }
