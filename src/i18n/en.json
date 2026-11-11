@@ -161,7 +161,13 @@
     "viewCreated": "View created schedule",
     "backToForm": "Back to form",
     "timezone": "Times are shown in Vietnam time (UTC+7).",
-    "pastWarning": "The start time is in the past. You can still save this schedule for your records, but no reminder email will be sent."
+    "pastWarning": "The start time is in the past. You can still save this schedule for your records, but no reminder email will be sent.",
+    "conflictBanner": "Schedule conflict detected: This time slot overlaps with {count} other schedule(s).",
+    "conflictModalTitle": "Schedule Conflict Warning",
+    "conflictModalMessage": "The selected time slot overlaps with the following schedules. Do you still want to proceed?",
+    "conflictProceed": "Save Anyway",
+    "conflictChooseAnother": "Choose Another Time",
+    "conflictItem": "{title} ({time})"
   },
   "edit": {
     "title": "Edit schedule",
@@ -176,7 +182,12 @@
     "validationError": "Some details are invalid. Please check the form.",
     "networkError": "Could not confirm whether changes were saved. Reload details before trying again to avoid overwriting.",
     "saveError": "Could not save changes. Your entries are still here.",
-    "reload": "Reload details"
+    "reload": "Reload details",
+    "conflictBanner": "Schedule conflict detected: This time slot overlaps with {count} other schedule(s).",
+    "conflictModalTitle": "Schedule Conflict Warning",
+    "conflictModalMessage": "The selected time slot overlaps with the following schedules. Do you still want to save changes?",
+    "conflictProceed": "Save Changes Anyway",
+    "conflictChooseAnother": "Choose Another Time"
   },
   "detail": {
     "edit": "Edit schedule",
@@ -349,6 +360,7 @@
     "uncertainError": "Could not determine whether the action completed. Check your schedules before trying again.",
     "staleError": "This proposal is no longer valid or the schedule changed. Send a new request.",
     "actionError": "Could not process the proposal. Please try again.",
+    "conflictWarning": "Conflicts with {count} other schedule(s) in this time slot:",
     "action": {
       "create": "Proposed new schedule",
       "update": "Proposed schedule edit",

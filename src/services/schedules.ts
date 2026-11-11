@@ -260,3 +260,37 @@ export async function listScheduleHistory(
     throw new ScheduleLoadError('failed')
   }
 }
+
+export interface ScheduleConflictResult {
+  has_conflict: boolean
+  conflicts: Schedule[]
+}
+
+export async function checkScheduleConflicts(
+  accessToken: string,
+  startsAtUtc: string,
+  endsAtUtc: string | null = null,
+  excludeId: string | null = null,
+): Promise<ScheduleConflictResult> {
+  const query = new URLSearchParams({ starts_at_utc: startsAtUtc })
+  if (endsAtUtc) query.set('ends_at_utc', endsAtUtc)
+  if (excludeId) query.set('exclude_id', excludeId)
+
+  let response: Response
+  try {
+    response = await fetch(`${apiBaseUrl}/api/schedules/conflicts?${query}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
+  } catch {
+    throw new ScheduleLoadError('network')
+  }
+
+  if (response.status === 401) throw new ScheduleLoadError('unauthorized')
+  if (!response.ok) throw new ScheduleLoadError('failed')
+
+  try {
+    return (await response.json()) as ScheduleConflictResult
+  } catch {
+    throw new ScheduleLoadError('failed')
+  }
+}

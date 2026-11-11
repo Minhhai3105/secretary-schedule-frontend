@@ -1,8 +1,14 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { AuthError, refreshSession, type LoginResult } from '../services/auth'
-import { createSchedule, ScheduleCreateError, type Schedule, type ScheduleCreatePayload } from '../services/schedules'
+import {
+  checkScheduleConflicts,
+  createSchedule,
+  ScheduleCreateError,
+  type Schedule,
+  type ScheduleCreatePayload,
+} from '../services/schedules'
 import { todayInVietnam, vietnamDate, vietnamTime } from '../utils/week'
 import { canonicalRelatedPerson, isSelf } from '../utils/relatedPerson'
 
@@ -43,6 +49,47 @@ const notes = ref(typeof props.initialData?.notes === 'string' ? props.initialDa
 const errorKey = ref('')
 const timeError = ref(false)
 const saving = ref(false)
+const conflicts = ref<Schedule[]>([])
+const showConflictModal = ref(false)
+let conflictCheckTimer: ReturnType<typeof setTimeout> | null = null
+
+function formatScheduleRange(item: Schedule): string {
+  const start = `${vietnamDate(item.starts_at_utc)} ${vietnamTime(item.starts_at_utc)}`
+  if (!item.ends_at_utc) return start
+  return `${start} → ${vietnamTime(item.ends_at_utc)}`
+}
+
+async function triggerConflictCheck() {
+  if (!date.value || !startTime.value) {
+    conflicts.value = []
+    return
+  }
+  const startsAt = vietnamLocalToUtc(date.value, startTime.value)
+  const endsAt = endTime.value ? vietnamLocalToUtc(endDate.value || date.value, endTime.value) : null
+  if (!startsAt || (endsAt && endsAt <= startsAt)) {
+    conflicts.value = []
+    return
+  }
+  try {
+    const res = await checkScheduleConflicts(props.session.access_token, startsAt, endsAt)
+    conflicts.value = res.conflicts
+  } catch {
+    // Non-blocking conflict check
+  }
+}
+
+watch([date, startTime, endDate, endTime], () => {
+  if (conflictCheckTimer) clearTimeout(conflictCheckTimer)
+  conflictCheckTimer = setTimeout(() => {
+    void triggerConflictCheck()
+  }, 300)
+})
+
+onMounted(() => {
+  if (date.value && startTime.value) {
+    void triggerConflictCheck()
+  }
+})
 
 watch(date, (next, previous) => {
   if (endDate.value === previous) endDate.value = next
@@ -59,7 +106,7 @@ const isPastStart = computed(() => {
   return startsAt !== null && Date.parse(startsAt) < Date.now()
 })
 
-async function submit() {
+async function submit(forceProceed = false) {
   if (saving.value) return
   errorKey.value = ''
   timeError.value = false
@@ -77,6 +124,11 @@ async function submit() {
     timeError.value = true
     return
   }
+  if (!forceProceed && conflicts.value.length > 0) {
+    showConflictModal.value = true
+    return
+  }
+  showConflictModal.value = false
   const urlText = meetingMode.value === 'online' ? meetingUrl.value.trim() : ''
   if (urlText) {
     try {
@@ -130,6 +182,9 @@ async function submit() {
     saving.value = false
   }
 }
+function handleSubmit() {
+  void submit(false)
+}
 </script>
 
 <template>
@@ -142,7 +197,7 @@ async function submit() {
       </button>
     </div>
 
-    <form class="create-form" novalidate @submit.prevent="submit">
+    <form class="create-form" novalidate @submit.prevent="handleSubmit">
       <fieldset :disabled="saving">
         <div class="mb-3">
           <label class="form-label" for="create-title">{{ t('create.titleLabel') }} *</label>
@@ -187,6 +242,16 @@ async function submit() {
           <textarea id="create-notes" v-model="notes" class="form-control" rows="3" /></div>
         <p class="create-timezone">{{ t('create.timezone') }}</p>
         <p v-if="isPastStart" class="alert alert-info small" role="note">{{ t('create.pastWarning') }}</p>
+        <div v-if="conflicts.length > 0" class="alert alert-warning small mb-3" role="alert">
+          <div class="fw-semibold mb-1">
+            {{ t('create.conflictBanner', { count: conflicts.length }) }}
+          </div>
+          <ul class="mb-0 ps-3">
+            <li v-for="c in conflicts" :key="c.id">
+              <strong>{{ c.title }}</strong>: {{ formatScheduleRange(c) }}
+            </li>
+          </ul>
+        </div>
         <p v-if="errorKey" class="alert alert-warning" role="alert">{{ t(errorKey) }}</p>
         <p v-if="saving" class="alert alert-info" role="status">{{ t('create.saving') }}</p>
         <div class="create-actions">
@@ -195,6 +260,34 @@ async function submit() {
         </div>
       </fieldset>
     </form>
+
+    <div v-if="showConflictModal" class="modal d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);" role="dialog" aria-modal="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title text-warning-emphasis">{{ t('create.conflictModalTitle') }}</h5>
+            <button type="button" class="btn-close" aria-label="Close" @click="showConflictModal = false"></button>
+          </div>
+          <div class="modal-body">
+            <p>{{ t('create.conflictModalMessage') }}</p>
+            <ul class="list-group mb-3">
+              <li v-for="c in conflicts" :key="c.id" class="list-group-item d-flex justify-content-between align-items-center">
+                <span><strong>{{ c.title }}</strong></span>
+                <small class="text-muted">{{ formatScheduleRange(c) }}</small>
+              </li>
+            </ul>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" @click="showConflictModal = false">
+              {{ t('create.conflictChooseAnother') }}
+            </button>
+            <button type="button" class="btn btn-warning" @click="submit(true)">
+              {{ t('create.conflictProceed') }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   </section>
 </template>
 
