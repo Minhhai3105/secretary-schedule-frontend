@@ -29,6 +29,8 @@ const emit = defineEmits<{
   scheduleChanged: []
 }>()
 const { locale, t } = useI18n({ useScope: 'global' })
+const isOpen = ref(false)
+const hasUnread = ref(false)
 const messages = ref<Message[]>([])
 const draft = ref('')
 const sending = ref(false)
@@ -36,6 +38,7 @@ const processing = ref(false)
 const sendErrorKey = ref('')
 const nowMs = ref(Date.now())
 const chatLogRef = ref<HTMLElement | null>(null)
+const messageInputRef = ref<HTMLTextAreaElement | null>(null)
 let expiryTimer: ReturnType<typeof setInterval> | undefined
 const starterKeys = ['chat.suggestions.today', 'chat.suggestions.week', 'chat.suggestions.create']
 const pendingProposal = computed(() => messages.value.some((item) =>
@@ -50,6 +53,31 @@ function scrollToBottom() {
     const el = chatLogRef.value
     if (el) el.scrollTop = el.scrollHeight
   })
+}
+
+function openChat() {
+  isOpen.value = true
+  hasUnread.value = false
+  scrollToBottom()
+  void nextTick(() => {
+    if (!sending.value && !processing.value && !pendingProposal.value) {
+      messageInputRef.value?.focus()
+    }
+  })
+}
+
+function closeChat() {
+  isOpen.value = false
+}
+
+function toggleChat() {
+  if (isOpen.value) closeChat()
+  else openChat()
+}
+
+function openScheduleFromChat(scheduleId: string) {
+  isOpen.value = false
+  emit('openSchedule', scheduleId)
 }
 
 function dateTimeLabel(value: string): string {
@@ -130,6 +158,7 @@ async function send() {
       proposal: response.proposal, proposalState: response.proposal ? 'pending' : undefined,
       targetSchedule,
     })
+    if (!isOpen.value) hasUnread.value = true
     draft.value = ''
     scrollToBottom()
   } catch (cause) {
@@ -229,6 +258,7 @@ async function editProposal(item: Message) {
       }
     }
     item.proposalState = 'cancelled'
+    isOpen.value = false
     if (proposal.action === 'create') {
       emit('editCreate', { ...proposal.proposed_data })
     } else if (proposal.action === 'update' && target) {
@@ -244,104 +274,141 @@ onUnmounted(() => { if (expiryTimer) clearInterval(expiryTimer) })
 </script>
 
 <template>
-  <section class="workspace-page">
-    <header class="workspace-header">
-      <h1>{{ t('chat.title') }}</h1>
-      <p>{{ t('chat.subtitle') }}</p>
-    </header>
-    <p class="alert alert-info small" role="note">{{ t('chat.privacy') }}</p>
-
-    <div ref="chatLogRef" class="workspace-chat-log" aria-live="polite">
-      <div v-if="messages.length === 0" class="workspace-chat-empty">
-        <p class="mb-0">{{ t('chat.empty') }}</p>
-        <div class="workspace-chat-chips">
-          <button v-for="promptKey in starterKeys" :key="promptKey" class="workspace-chat-chip"
-            type="button" :disabled="sending || processing || pendingProposal"
-            @click="useStarterPrompt(promptKey)">
-            {{ t(promptKey) }}
-          </button>
+  <aside class="chat-widget" :aria-label="t('chat.title')" @keydown.esc="closeChat">
+    <section v-show="isOpen" id="floating-chat-panel" class="chat-floating-panel"
+      role="dialog" :aria-modal="false" :aria-label="t('chat.title')">
+      <header class="chat-floating-header">
+        <div class="chat-floating-title">
+          <span class="chat-floating-avatar" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 5h16v11H9l-5 4V5Z" /><path d="M8 9h8M8 12h5" />
+            </svg>
+          </span>
+          <div>
+            <h2>{{ t('chat.title') }}</h2>
+            <p>{{ t('chat.subtitle') }}</p>
+          </div>
         </div>
-      </div>
-      <div v-for="(item, index) in messages" :key="index" class="d-flex"
-        :class="item.role === 'user' ? 'justify-content-end' : 'justify-content-start'">
-        <div :class="item.role === 'user' ? 'workspace-chat-bubble-user' : 'workspace-chat-bubble-assistant'">
-          <p class="mb-0" style="white-space: pre-wrap">{{ item.content }}</p>
-          <div v-if="item.schedules?.length" class="mt-3">
-            <h2 class="h6">{{ t('chat.relatedSchedules') }}</h2>
-            <ul class="mb-0 ps-3">
-              <li v-for="schedule in item.schedules" :key="schedule.id" class="mb-1">
-                <span>{{ schedule.title }} · {{ dateTimeLabel(schedule.starts_at_utc) }}</span>
-                <button class="btn btn-link btn-sm p-0 ms-2 align-baseline" type="button"
-                  @click="emit('openSchedule', schedule.id)">
+        <button class="chat-floating-close" type="button"
+          :aria-label="t('chat.minimize')" :title="t('chat.minimize')" @click="closeChat">
+          <span aria-hidden="true">−</span>
+        </button>
+      </header>
+      <p class="chat-floating-privacy" role="note">{{ t('chat.privacy') }}</p>
+
+      <div ref="chatLogRef" class="workspace-chat-log chat-floating-log" aria-live="polite">
+        <div v-if="messages.length === 0" class="workspace-chat-empty">
+          <p class="mb-0">{{ t('chat.empty') }}</p>
+          <div class="workspace-chat-chips">
+            <button v-for="promptKey in starterKeys" :key="promptKey" class="workspace-chat-chip"
+              type="button" :disabled="sending || processing || pendingProposal"
+              @click="useStarterPrompt(promptKey)">
+              {{ t(promptKey) }}
+            </button>
+          </div>
+        </div>
+        <div v-for="(item, index) in messages" :key="index" class="d-flex"
+          :class="item.role === 'user' ? 'justify-content-end' : 'justify-content-start'">
+          <div :class="item.role === 'user' ? 'workspace-chat-bubble-user' : 'workspace-chat-bubble-assistant'">
+            <p class="mb-0" style="white-space: pre-wrap">{{ item.content }}</p>
+            <div v-if="item.schedules?.length" class="mt-3">
+              <h3 class="h6">{{ t('chat.relatedSchedules') }}</h3>
+              <ul class="mb-0 ps-3">
+                <li v-for="schedule in item.schedules" :key="schedule.id" class="mb-1">
+                  <span>{{ schedule.title }} · {{ dateTimeLabel(schedule.starts_at_utc) }}</span>
+                  <button class="btn btn-link btn-sm p-0 ms-2 align-baseline" type="button"
+                    @click="openScheduleFromChat(schedule.id)">
+                    {{ t('chat.openSchedule') }}
+                  </button>
+                </li>
+              </ul>
+            </div>
+            <div v-if="item.proposal" class="workspace-proposal-card">
+              <h3 class="h6">{{ t(`chat.action.${item.proposal.action}`) }}</h3>
+              <p v-if="item.targetSchedule" class="small workspace-meta mb-2">
+                {{ t('chat.targetSchedule') }}: <strong>{{ item.targetSchedule.title }}</strong>
+                ({{ dateTimeLabel(item.targetSchedule.starts_at_utc) }})
+              </p>
+              <dl v-if="proposalFields(item.proposal, item.targetSchedule).length" class="row mb-2">
+                <template v-for="field in proposalFields(item.proposal, item.targetSchedule)" :key="field.label">
+                  <dt class="col-sm-5">{{ field.label }}</dt>
+                  <dd class="col-sm-7 text-break">
+                    <template v-if="field.oldValue !== undefined">
+                      <span class="workspace-meta">{{ t('chat.oldValue') }}: {{ field.oldValue }}</span>
+                      <span class="mx-1">→</span>
+                      <strong>{{ t('chat.newValue') }}: {{ field.value }}</strong>
+                    </template>
+                    <template v-else>{{ field.value }}</template>
+                  </dd>
+                </template>
+              </dl>
+              <p v-if="item.proposal.action !== 'create'" class="small workspace-meta text-break mb-2">
+                {{ t('chat.scheduleId') }}: {{ item.proposal.schedule_id }}
+              </p>
+              <p class="small workspace-meta mb-2">{{ t('chat.expiresAt') }}: {{ dateTimeLabel(item.proposal.expires_at_utc) }}</p>
+              <p v-if="item.proposalErrorKey" class="alert alert-warning small" role="alert">{{ t(item.proposalErrorKey) }}</p>
+              <div v-if="item.proposalState === 'confirmed'" class="alert alert-success small mb-0 d-flex align-items-center justify-content-between gap-2 flex-wrap" role="status">
+                <span>{{ t('chat.confirmed', { title: item.confirmedSchedule?.title ?? '' }) }}</span>
+                <button v-if="item.confirmedSchedule" class="btn btn-outline-success btn-sm" type="button"
+                  @click="openScheduleFromChat(item.confirmedSchedule.id)">
                   {{ t('chat.openSchedule') }}
                 </button>
-              </li>
-            </ul>
-          </div>
-          <div v-if="item.proposal" class="workspace-proposal-card">
-            <h2 class="h6">{{ t(`chat.action.${item.proposal.action}`) }}</h2>
-            <p v-if="item.targetSchedule" class="small workspace-meta mb-2">
-              {{ t('chat.targetSchedule') }}: <strong>{{ item.targetSchedule.title }}</strong>
-              ({{ dateTimeLabel(item.targetSchedule.starts_at_utc) }})
-            </p>
-            <dl v-if="proposalFields(item.proposal, item.targetSchedule).length" class="row mb-2">
-              <template v-for="field in proposalFields(item.proposal, item.targetSchedule)" :key="field.label">
-                <dt class="col-sm-5">{{ field.label }}</dt>
-                <dd class="col-sm-7 text-break">
-                  <template v-if="field.oldValue !== undefined">
-                    <span class="workspace-meta">{{ t('chat.oldValue') }}: {{ field.oldValue }}</span>
-                    <span class="mx-1">→</span>
-                    <strong>{{ t('chat.newValue') }}: {{ field.value }}</strong>
-                  </template>
-                  <template v-else>{{ field.value }}</template>
-                </dd>
-              </template>
-            </dl>
-            <p v-if="item.proposal.action !== 'create'" class="small workspace-meta text-break mb-2">
-              {{ t('chat.scheduleId') }}: {{ item.proposal.schedule_id }}
-            </p>
-            <p class="small workspace-meta mb-2">{{ t('chat.expiresAt') }}: {{ dateTimeLabel(item.proposal.expires_at_utc) }}</p>
-            <p v-if="item.proposalErrorKey" class="alert alert-warning small" role="alert">{{ t(item.proposalErrorKey) }}</p>
-            <div v-if="item.proposalState === 'confirmed'" class="alert alert-success small mb-0 d-flex align-items-center justify-content-between gap-2 flex-wrap" role="status">
-              <span>{{ t('chat.confirmed', { title: item.confirmedSchedule?.title ?? '' }) }}</span>
-              <button v-if="item.confirmedSchedule" class="btn btn-outline-success btn-sm" type="button"
-                @click="emit('openSchedule', item.confirmedSchedule.id)">
-                {{ t('chat.openSchedule') }}
-              </button>
-            </div>
-            <p v-else-if="item.proposalState === 'cancelled'" class="workspace-meta small mb-0">{{ t('chat.cancelled') }}</p>
-            <p v-else-if="item.proposalState === 'pending' && isExpired(item.proposal)" class="workspace-meta small mb-0">{{ t('chat.expired') }}</p>
-            <div v-else-if="item.proposalState === 'pending'" class="d-flex gap-2 flex-wrap">
-              <button class="btn btn-primary btn-sm" type="button" :disabled="processing" @click="processProposal(item, 'confirm')">
-                {{ t(processing ? 'chat.processing' : 'chat.confirm') }}
-              </button>
-              <button v-if="item.proposal.action === 'create' || item.proposal.action === 'update'"
-                class="btn btn-outline-primary btn-sm" type="button" :disabled="processing" @click="editProposal(item)">
-                {{ t('chat.editProposal') }}
-              </button>
-              <button class="btn btn-outline-secondary btn-sm" type="button" :disabled="processing" @click="processProposal(item, 'cancel')">
-                {{ t('chat.cancelProposal') }}
-              </button>
+              </div>
+              <p v-else-if="item.proposalState === 'cancelled'" class="workspace-meta small mb-0">{{ t('chat.cancelled') }}</p>
+              <p v-else-if="item.proposalState === 'pending' && isExpired(item.proposal)" class="workspace-meta small mb-0">{{ t('chat.expired') }}</p>
+              <div v-else-if="item.proposalState === 'pending'" class="d-flex gap-2 flex-wrap">
+                <button class="btn btn-primary btn-sm" type="button" :disabled="processing" @click="processProposal(item, 'confirm')">
+                  {{ t(processing ? 'chat.processing' : 'chat.confirm') }}
+                </button>
+                <button v-if="item.proposal.action === 'create' || item.proposal.action === 'update'"
+                  class="btn btn-outline-primary btn-sm" type="button" :disabled="processing" @click="editProposal(item)">
+                  {{ t('chat.editProposal') }}
+                </button>
+                <button class="btn btn-outline-secondary btn-sm" type="button" :disabled="processing" @click="processProposal(item, 'cancel')">
+                  {{ t('chat.cancelProposal') }}
+                </button>
+              </div>
             </div>
           </div>
         </div>
+        <p v-if="sending" class="workspace-meta mb-0" role="status">{{ t('chat.waiting') }}</p>
       </div>
-      <p v-if="sending" class="workspace-meta mb-0" role="status">{{ t('chat.waiting') }}</p>
-    </div>
 
-    <p v-if="pendingProposal" class="alert alert-light small" role="status">{{ t('chat.resolveProposal') }}</p>
-    <div v-if="sendErrorKey" class="alert alert-warning" role="alert">{{ t(sendErrorKey) }}</div>
-    <form class="workspace-card" @submit.prevent="send">
-      <label class="form-label fw-semibold" for="chat-message">{{ t('chat.messageLabel') }}</label>
-      <textarea id="chat-message" v-model="draft" class="form-control" rows="3" maxlength="4000"
-        :placeholder="t('chat.placeholder')" :disabled="sending || processing || pendingProposal"
-        @keydown="onMessageKeydown" />
-      <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap mt-2">
-        <small class="workspace-meta">{{ t('chat.enterHint') }}</small>
-        <button class="btn btn-primary" type="submit" :disabled="sending || processing || pendingProposal || !draft.trim()">
-          {{ t(sending ? 'chat.sending' : 'chat.send') }}
-        </button>
+      <div class="chat-floating-footer">
+        <p v-if="pendingProposal" class="alert alert-light small py-2 px-3 mb-2" role="status">{{ t('chat.resolveProposal') }}</p>
+        <div v-if="sendErrorKey" class="alert alert-warning small py-2 px-3 mb-2" role="alert">{{ t(sendErrorKey) }}</div>
+        <form class="chat-floating-form" @submit.prevent="send">
+          <label class="visually-hidden" for="chat-message">{{ t('chat.messageLabel') }}</label>
+          <textarea id="chat-message" ref="messageInputRef" v-model="draft" class="form-control chat-floating-input"
+            rows="2" maxlength="4000" :placeholder="t('chat.placeholder')"
+            :disabled="sending || processing || pendingProposal" @keydown="onMessageKeydown" />
+          <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap mt-2">
+            <small class="workspace-meta">{{ t('chat.enterHint') }}</small>
+            <button class="btn btn-primary btn-sm px-3" type="submit"
+              :disabled="sending || processing || pendingProposal || !draft.trim()">
+              {{ t(sending ? 'chat.sending' : 'chat.send') }}
+            </button>
+          </div>
+        </form>
       </div>
-    </form>
-  </section>
+    </section>
+
+    <button class="chat-bubble-launcher" :class="{ 'chat-bubble-launcher-open': isOpen }" type="button"
+      :aria-expanded="isOpen" aria-controls="floating-chat-panel"
+      :aria-label="t(isOpen ? 'chat.minimize' : 'chat.openBubble')"
+      :title="t(isOpen ? 'chat.minimize' : 'chat.openBubble')"
+      @click="toggleChat">
+      <svg v-if="!isOpen" class="chat-bubble-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M4 5h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H9l-5 4V6a1 1 0 0 1 1-1Z" />
+        <path d="M8 9h8M8 13h5" />
+      </svg>
+      <svg v-else class="chat-bubble-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="m6 9 6 6 6-6" />
+      </svg>
+      <span v-if="!isOpen && (pendingProposal || hasUnread)" class="chat-bubble-badge" aria-hidden="true">!</span>
+    </button>
+  </aside>
 </template>
