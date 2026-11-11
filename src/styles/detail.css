@@ -1,21 +1,21 @@
-.detail-page { max-width: 900px; }
-.detail-heading h1 { margin: 0; font-size: 28px; font-weight: 700; }
-.detail-heading p { margin: 3px 0 12px; color: #72829a; font-size: 14px; }
+.detail-page { max-width: 900px; color: var(--text-main); }
+.detail-heading h1 { margin: 0; font-size: 28px; font-weight: 700; color: var(--text-heading); }
+.detail-heading p { margin: 3px 0 12px; color: var(--text-muted); font-size: 14px; }
 .detail-heading .btn-link { margin-bottom: 15px; text-decoration: none; }
-.detail-card { border: 1px solid #dce4ef; border-radius: 8px; background: #fff; }
-.detail-card-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 24px; border-bottom: 1px solid #dce4ef; }
-.detail-card-header h2 { margin: 0; font-size: 22px; font-weight: 700; overflow-wrap: anywhere; }
+.detail-card { border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-surface); }
+.detail-card-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 24px; border-bottom: 1px solid var(--border-color); }
+.detail-card-header h2 { margin: 0; font-size: 22px; font-weight: 700; overflow-wrap: anywhere; color: var(--text-heading); }
 .detail-status { flex: 0 0 auto; padding: 5px 10px; border-radius: 20px; font-size: 12px; font-weight: 700; }
-.detail-status-upcoming { background: #eaf2ff; color: #1755c4; }
-.detail-status-past { background: #edf1f6; color: #55677f; }
-.detail-status-cancelled { background: #fff1ef; color: #b43f35; }
+.detail-status-upcoming { background: var(--brand-soft); color: var(--brand-primary); }
+.detail-status-past { background: var(--badge-neutral-bg); color: var(--badge-neutral-text); }
+.detail-status-cancelled { background: var(--badge-danger-bg); color: var(--badge-danger-text); }
 .detail-fields { margin: 0; padding: 4px 24px 16px; }
-.detail-fields > div { display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: 16px; padding: 18px 0; border-bottom: 1px solid #edf1f6; }
+.detail-fields > div { display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: 16px; padding: 18px 0; border-bottom: 1px solid var(--border-subtle); }
 .detail-fields > div:last-child { border-bottom: 0; }
-.detail-fields dt { color: #72829a; font-size: 14px; font-weight: 600; }
-.detail-fields dd { margin: 0; overflow-wrap: anywhere; }
+.detail-fields dt { color: var(--text-muted); font-size: 14px; font-weight: 600; }
+.detail-fields dd { margin: 0; overflow-wrap: anywhere; color: var(--text-main); }
 .detail-fields .detail-long-text { white-space: pre-wrap; }
-.detail-fields dd small { display: block; margin-top: 4px; color: #72829a; font-size: 12px; }
+.detail-fields dd small { display: block; margin-top: 4px; color: var(--text-muted); font-size: 12px; }
 @media (max-width: 700px) {
   .detail-card-header { align-items: flex-start; flex-direction: column; padding: 18px; }
   .detail-fields { padding: 0 18px 8px; }

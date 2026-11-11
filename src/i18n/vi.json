@@ -2,6 +2,12 @@
   "language": {
     "switchTo": "Chuyển sang tiếng Anh"
   },
+  "theme": {
+    "light": "Sáng",
+    "dark": "Tối",
+    "switchToLight": "Chuyển sang giao diện sáng",
+    "switchToDark": "Chuyển sang giao diện tối"
+  },
   "common": {
     "email": "Email",
     "emailPlaceholder": "ban{'@'}example.com",

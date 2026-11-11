@@ -2,6 +2,12 @@
   "language": {
     "switchTo": "Switch to Vietnamese"
   },
+  "theme": {
+    "light": "Light",
+    "dark": "Dark",
+    "switchToLight": "Switch to light theme",
+    "switchToDark": "Switch to dark theme"
+  },
   "common": {
     "email": "Email",
     "emailPlaceholder": "you{'@'}example.com",
