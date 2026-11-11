@@ -6,7 +6,9 @@ import {
   checkScheduleConflicts,
   createSchedule,
   ScheduleCreateError,
+  ScheduleLoadError,
   type Schedule,
+  type ScheduleConflictResult,
   type ScheduleCreatePayload,
 } from '../services/schedules'
 import { todayInVietnam, vietnamDate, vietnamTime } from '../utils/week'
@@ -51,7 +53,10 @@ const timeError = ref(false)
 const saving = ref(false)
 const conflicts = ref<Schedule[]>([])
 const showConflictModal = ref(false)
+const checkingConflicts = ref(false)
+const conflictCheckFailed = ref(false)
 let conflictCheckTimer: ReturnType<typeof setTimeout> | null = null
+let conflictRequestId = 0
 
 function formatScheduleRange(item: Schedule): string {
   const start = `${vietnamDate(item.starts_at_utc)} ${vietnamTime(item.starts_at_utc)}`
@@ -59,35 +64,71 @@ function formatScheduleRange(item: Schedule): string {
   return `${start} → ${vietnamTime(item.ends_at_utc)}`
 }
 
-async function triggerConflictCheck() {
-  if (!date.value || !startTime.value) {
-    conflicts.value = []
-    return
-  }
-  const startsAt = vietnamLocalToUtc(date.value, startTime.value)
-  const endsAt = endTime.value ? vietnamLocalToUtc(endDate.value || date.value, endTime.value) : null
-  if (!startsAt || (endsAt && endsAt <= startsAt)) {
-    conflicts.value = []
-    return
-  }
+async function fetchConflicts(startsAt: string, endsAt: string | null): Promise<Schedule[]> {
+  const requestId = ++conflictRequestId
+  checkingConflicts.value = true
+  conflictCheckFailed.value = false
   try {
-    const res = await checkScheduleConflicts(props.session.access_token, startsAt, endsAt)
+    let activeToken = props.session.access_token
+    let res: ScheduleConflictResult
+    try {
+      res = await checkScheduleConflicts(activeToken, startsAt, endsAt)
+    } catch (cause) {
+      if (!(cause instanceof ScheduleLoadError) || cause.code !== 'unauthorized') throw cause
+      const renewed = await refreshSession()
+      if (!renewed) {
+        emit('sessionExpired')
+        throw cause
+      }
+      emit('sessionUpdated', renewed)
+      activeToken = renewed.access_token
+      res = await checkScheduleConflicts(activeToken, startsAt, endsAt)
+    }
+    if (requestId !== conflictRequestId) {
+      return conflicts.value
+    }
     conflicts.value = res.conflicts
-  } catch {
-    // Non-blocking conflict check
+    return res.conflicts
+  } catch (cause) {
+    if (requestId === conflictRequestId) {
+      conflictCheckFailed.value = true
+      throw cause
+    }
+    return conflicts.value
+  } finally {
+    if (requestId === conflictRequestId) {
+      checkingConflicts.value = false
+    }
   }
 }
 
 watch([date, startTime, endDate, endTime], () => {
+  conflictCheckFailed.value = false
   if (conflictCheckTimer) clearTimeout(conflictCheckTimer)
   conflictCheckTimer = setTimeout(() => {
-    void triggerConflictCheck()
+    if (!date.value || !startTime.value) {
+      conflicts.value = []
+      return
+    }
+    const startsAt = vietnamLocalToUtc(date.value, startTime.value)
+    const endsAt = endTime.value ? vietnamLocalToUtc(endDate.value || date.value, endTime.value) : null
+    if (!startsAt || (endsAt && endsAt <= startsAt)) {
+      conflicts.value = []
+      return
+    }
+    void fetchConflicts(startsAt, endsAt).catch(() => {
+      // background typing checks do not block typing
+    })
   }, 300)
 })
 
 onMounted(() => {
   if (date.value && startTime.value) {
-    void triggerConflictCheck()
+    const startsAt = vietnamLocalToUtc(date.value, startTime.value)
+    const endsAt = endTime.value ? vietnamLocalToUtc(endDate.value || date.value, endTime.value) : null
+    if (startsAt && (!endsAt || endsAt > startsAt)) {
+      void fetchConflicts(startsAt, endsAt).catch(() => {})
+    }
   }
 })
 
@@ -110,6 +151,8 @@ async function submit(forceProceed = false) {
   if (saving.value) return
   errorKey.value = ''
   timeError.value = false
+  conflictCheckFailed.value = false
+
   if (!title.value.trim() || !date.value || !startTime.value) {
     errorKey.value = 'create.required'
     return
@@ -124,10 +167,24 @@ async function submit(forceProceed = false) {
     timeError.value = true
     return
   }
-  if (!forceProceed && conflicts.value.length > 0) {
-    showConflictModal.value = true
-    return
+
+  if (!forceProceed) {
+    if (conflictCheckTimer) {
+      clearTimeout(conflictCheckTimer)
+      conflictCheckTimer = null
+    }
+    let detectedConflicts: Schedule[]
+    try {
+      detectedConflicts = await fetchConflicts(startsAt, endsAt)
+    } catch {
+      return
+    }
+    if (detectedConflicts.length > 0) {
+      showConflictModal.value = true
+      return
+    }
   }
+
   showConflictModal.value = false
   const urlText = meetingMode.value === 'online' ? meetingUrl.value.trim() : ''
   if (urlText) {
@@ -252,10 +309,21 @@ function handleSubmit() {
             </li>
           </ul>
         </div>
+        <div v-if="conflictCheckFailed" class="alert alert-warning small mb-3" role="alert">
+          <div>{{ t('create.conflictCheckFailed') }}</div>
+          <div class="mt-2 d-flex gap-2">
+            <button class="btn btn-sm btn-outline-primary" type="button" :disabled="saving || checkingConflicts" @click="submit(false)">
+              {{ t('common.retry') }}
+            </button>
+            <button class="btn btn-sm btn-warning" type="button" :disabled="saving || checkingConflicts" @click="submit(true)">
+              {{ t('create.conflictProceed') }}
+            </button>
+          </div>
+        </div>
         <p v-if="errorKey" class="alert alert-warning" role="alert">{{ t(errorKey) }}</p>
         <p v-if="saving" class="alert alert-info" role="status">{{ t('create.saving') }}</p>
         <div class="create-actions">
-          <button class="btn btn-primary" type="submit">{{ t('create.save') }}</button>
+          <button class="btn btn-primary" type="submit" :disabled="saving || checkingConflicts">{{ saving ? t('create.saving') : t('create.save') }}</button>
           <button class="btn btn-outline-secondary" type="button" @click="emit('cancel')">{{ t('create.cancel') }}</button>
         </div>
       </fieldset>

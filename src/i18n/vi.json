@@ -167,7 +167,8 @@
     "conflictModalMessage": "Khung giờ bạn chọn đang trùng với các lịch trình sau. Bạn có chắc chắn vẫn muốn lưu không?",
     "conflictProceed": "Vẫn lưu lịch",
     "conflictChooseAnother": "Chọn lại giờ",
-    "conflictItem": "{title} ({time})"
+    "conflictItem": "{title} ({time})",
+    "conflictCheckFailed": "Không thể kiểm tra trùng lịch do lỗi kết nối. Bạn có muốn thử lại hay vẫn lưu lịch?"
   },
   "edit": {
     "title": "Sửa lịch",
@@ -187,7 +188,8 @@
     "conflictModalTitle": "Cảnh báo trùng lịch",
     "conflictModalMessage": "Khung giờ bạn chọn đang trùng với các lịch trình sau. Bạn có chắc chắn vẫn muốn lưu thay đổi không?",
     "conflictProceed": "Vẫn lưu thay đổi",
-    "conflictChooseAnother": "Chọn lại giờ"
+    "conflictChooseAnother": "Chọn lại giờ",
+    "conflictCheckFailed": "Không thể kiểm tra trùng lịch do lỗi kết nối. Bạn có muốn thử lại hay vẫn lưu thay đổi?"
   },
   "detail": {
     "edit": "Sửa lịch",

@@ -167,7 +167,8 @@
     "conflictModalMessage": "The selected time slot overlaps with the following schedules. Do you still want to proceed?",
     "conflictProceed": "Save Anyway",
     "conflictChooseAnother": "Choose Another Time",
-    "conflictItem": "{title} ({time})"
+    "conflictItem": "{title} ({time})",
+    "conflictCheckFailed": "Could not check for schedule conflicts due to a connection error. Would you like to retry or save anyway?"
   },
   "edit": {
     "title": "Edit schedule",
@@ -187,7 +188,8 @@
     "conflictModalTitle": "Schedule Conflict Warning",
     "conflictModalMessage": "The selected time slot overlaps with the following schedules. Do you still want to save changes?",
     "conflictProceed": "Save Changes Anyway",
-    "conflictChooseAnother": "Choose Another Time"
+    "conflictChooseAnother": "Choose Another Time",
+    "conflictCheckFailed": "Could not check for schedule conflicts due to a connection error. Would you like to retry or save changes anyway?"
   },
   "detail": {
     "edit": "Edit schedule",

@@ -162,8 +162,20 @@ async function send() {
     }
     if (response.proposal && (response.proposal.action === 'create' || response.proposal.action === 'update')) {
       const data = response.proposal.proposed_data
-      const startsAt = (typeof data.starts_at_utc === 'string' ? data.starts_at_utc : targetSchedule?.starts_at_utc) ?? null
-      const endsAt = (typeof data.ends_at_utc === 'string' ? data.ends_at_utc : targetSchedule?.ends_at_utc) ?? null
+      let startsAt: string | null = null
+      if (Object.hasOwn(data, 'starts_at_utc')) {
+        startsAt = typeof data.starts_at_utc === 'string' ? data.starts_at_utc : null
+      } else if (response.proposal.action === 'update' && targetSchedule?.starts_at_utc) {
+        startsAt = targetSchedule.starts_at_utc
+      }
+
+      let endsAt: string | null = null
+      if (Object.hasOwn(data, 'ends_at_utc')) {
+        endsAt = typeof data.ends_at_utc === 'string' ? data.ends_at_utc : null
+      } else if (response.proposal.action === 'update' && targetSchedule?.ends_at_utc) {
+        endsAt = targetSchedule.ends_at_utc
+      }
+
       if (startsAt) {
         try {
           const conflictRes = await checkScheduleConflicts(
