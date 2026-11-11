@@ -113,3 +113,48 @@ export async function register(payload: RegisterRequest): Promise<AuthUser> {
 
   return (await response.json()) as AuthUser
 }
+
+type PasswordResetErrorCode = 'network' | 'unavailable' | 'invalidEmail' | 'invalidToken' | 'failed'
+
+export class PasswordResetError extends Error {
+  readonly code: PasswordResetErrorCode
+
+  constructor(code: PasswordResetErrorCode) {
+    super(code)
+    this.code = code
+  }
+}
+
+export async function requestPasswordReset(email: string): Promise<void> {
+  let response: Response
+  try {
+    response = await fetch(`${apiBaseUrl}/api/auth/forgot-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    })
+  } catch {
+    throw new PasswordResetError('network')
+  }
+
+  if (response.status === 503) throw new PasswordResetError('unavailable')
+  if (response.status === 422) throw new PasswordResetError('invalidEmail')
+  if (response.status !== 202) throw new PasswordResetError('failed')
+}
+
+export async function resetPassword(token: string, password: string): Promise<void> {
+  let response: Response
+  try {
+    response = await fetch(`${apiBaseUrl}/api/auth/reset-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, password }),
+    })
+  } catch {
+    throw new PasswordResetError('network')
+  }
+
+  if (response.status === 400) throw new PasswordResetError('invalidToken')
+  if (response.status === 422) throw new PasswordResetError('invalidToken')
+  if (response.status !== 204) throw new PasswordResetError('failed')
+}
