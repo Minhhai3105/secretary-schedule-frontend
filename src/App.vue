@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue'
+import { onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import LanguageSwitch from './components/LanguageSwitch.vue'
 import LoginView from './views/LoginView.vue'
@@ -49,7 +49,31 @@ function onSessionExpired() {
 }
 
 function goToForgot() {
-  window.location.assign('/forgot-password')
+  authScreen.value = 'forgot'
+  if (window.location.pathname !== '/forgot-password') {
+    window.history.pushState({ authScreen: 'forgot' }, '', '/forgot-password')
+  }
+}
+
+function goToLogin() {
+  authScreen.value = 'login'
+  if (window.location.pathname !== '/') {
+    window.history.pushState({ authScreen: 'login' }, '', '/')
+  }
+}
+
+function goToRegister() {
+  authScreen.value = 'register'
+  window.history.pushState({ authScreen: 'register' }, '', '/')
+}
+
+function onPopState(event: PopStateEvent) {
+  if (session.value) return
+  const path = window.location.pathname
+  if (path === '/forgot-password') authScreen.value = 'forgot'
+  else if (path === '/reset-password') authScreen.value = 'reset'
+  else if (event.state?.authScreen === 'register') authScreen.value = 'register'
+  else authScreen.value = 'login'
 }
 
 async function signOut() {
@@ -59,6 +83,8 @@ async function signOut() {
   try {
     await logout()
     session.value = null
+    authScreen.value = 'login'
+    window.history.replaceState(null, '', '/')
   } catch (cause) {
     logoutError.value = cause instanceof AuthError ? `errors.${cause.code}` : 'errors.logoutFailed'
   } finally {
@@ -67,8 +93,12 @@ async function signOut() {
 }
 
 onMounted(() => {
+  window.addEventListener('popstate', onPopState)
   if (authScreen.value === 'forgot' || authScreen.value === 'reset') restoring.value = false
   else void restore()
+})
+onUnmounted(() => {
+  window.removeEventListener('popstate', onPopState)
 })
 </script>
 
@@ -81,12 +111,13 @@ onMounted(() => {
     <p class="alert alert-warning" role="alert">{{ t(restoreError) }}</p>
     <button class="btn btn-primary" type="button" @click="restore">{{ t('common.retry') }}</button>
   </main>
-  <ResetPasswordView v-else-if="authScreen === 'reset'" :token="resetToken" />
-  <ForgotPasswordView v-else-if="authScreen === 'forgot'" />
+  <ResetPasswordView v-else-if="authScreen === 'reset'" :token="resetToken"
+    @login-requested="goToLogin" @forgot-requested="goToForgot" />
+  <ForgotPasswordView v-else-if="authScreen === 'forgot'" @login-requested="goToLogin" />
   <template v-else-if="!session">
     <LoginView v-if="authScreen === 'login'" @authenticated="onAuthenticated"
-      @register-requested="authScreen = 'register'" @forgot-requested="goToForgot" />
-    <RegisterView v-else @login-requested="authScreen = 'login'" />
+      @register-requested="goToRegister" @forgot-requested="goToForgot" />
+    <RegisterView v-else @login-requested="goToLogin" />
   </template>
   <WeeklyScheduleView v-else :session="session" :logging-out="loggingOut" :logout-error="logoutError"
     @session-updated="onAuthenticated" @session-expired="onSessionExpired" @logout-requested="signOut" />

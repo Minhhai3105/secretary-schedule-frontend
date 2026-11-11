@@ -125,10 +125,10 @@ onMounted(() => { void load() })
 </script>
 
 <template>
-  <section class="col-12 col-xl-8 p-0">
-    <header class="mb-4">
-      <h1 class="h3 mb-1">{{ t('reminders.title') }}</h1>
-      <p class="text-secondary mb-0">{{ t('reminders.subtitle') }}</p>
+  <section class="workspace-page">
+    <header class="workspace-header">
+      <h1>{{ t('reminders.title') }}</h1>
+      <p>{{ t('reminders.subtitle') }}</p>
     </header>
     <p class="alert alert-info" role="note">{{ t('reminders.notActive') }}</p>
     <p v-if="loading" class="alert alert-light" role="status">{{ t('reminders.loading') }}</p>
@@ -136,7 +136,7 @@ onMounted(() => { void load() })
       {{ t(errorKey) }}
       <button v-if="!loaded" class="btn btn-link btn-sm" type="button" @click="load">{{ t('common.retry') }}</button>
     </div>
-    <form v-if="loaded && !loading" class="card p-4" novalidate @submit.prevent="save">
+    <form v-if="loaded && !loading" class="workspace-card" novalidate @submit.prevent="save">
       <fieldset :disabled="saving">
         <div class="form-check form-switch mb-3">
           <input id="reminder-daily-enabled" v-model="dailyEnabled" class="form-check-input" type="checkbox" role="switch" @change="savedNotice = false" />
