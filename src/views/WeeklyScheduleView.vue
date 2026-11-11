@@ -14,7 +14,7 @@ import LogoutConfirmModal from '../components/LogoutConfirmModal.vue'
 import { mondayOf, shiftDate, todayInVietnam, vietnamDate, vietnamTime, weekDates } from '../utils/week'
 import { isSelf, relatedPeopleOptions } from '../utils/relatedPerson'
 
-type Section = 'week' | 'history' | 'reminders' | 'emails' | 'chat'
+type Section = 'week' | 'history' | 'reminders' | 'emails'
 
 const props = defineProps<{ session: LoginResult; loggingOut: boolean; logoutError: string }>()
 const emit = defineEmits<{
@@ -26,7 +26,6 @@ const { locale, t } = useI18n({ useScope: 'global' })
 const weekStart = ref(mondayOf(todayInVietnam()))
 const activeSection = ref<Section>('week')
 const remindersVisited = ref(false)
-const chatVisited = ref(false)
 const sidebarCollapsed = ref(window.matchMedia('(max-width: 700px)').matches)
 const selectedPerson = ref('')
 const schedules = ref<Schedule[]>([])
@@ -327,10 +326,16 @@ async function confirmCancel() {
   }
 }
 
+function onChatScheduleChanged() {
+  void load()
+  if (selectedScheduleId.value && !creatingSchedule.value && !editingSchedule.value) {
+    void loadDetail()
+  }
+}
+
 function selectSection(section: Section) {
   if (activeSection.value === section && !selectedScheduleId.value && !creatingSchedule.value && !editingSchedule.value) return
   if (section === 'reminders') remindersVisited.value = true
-  if (section === 'chat') chatVisited.value = true
   activeSection.value = section
   closeDetail()
 }
@@ -356,9 +361,8 @@ function onPopState(event: PopStateEvent) {
   try {
     const state = event.state
     const section = state?.section as Section | undefined
-    if (section && ['week', 'history', 'reminders', 'emails', 'chat'].includes(section)) {
+    if (section && ['week', 'history', 'reminders', 'emails'].includes(section)) {
       if (section === 'reminders') remindersVisited.value = true
-      if (section === 'chat') chatVisited.value = true
       activeSection.value = section
     }
     const nextId = typeof state?.scheduleId === 'string' ? state.scheduleId : null
@@ -439,17 +443,6 @@ onUnmounted(() => {
           </svg>
           <span class="week-nav-label">{{ t('emailAudit.title') }}</span>
         </button>
-        <button class="week-nav-item" :class="{ 'week-nav-active': activeSection === 'chat' }" type="button"
-          :aria-current="activeSection === 'chat' ? 'page' : undefined"
-          :aria-label="sidebarCollapsed ? t('chat.title') : undefined"
-          :title="sidebarCollapsed ? t('chat.title') : undefined"
-          :disabled="creatingSchedule || editingSchedule || cancellingSchedule" @click="selectSection('chat')">
-          <svg class="week-nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M4 5h16v11H9l-5 4V5Z" /><path d="M8 9h8M8 12h5" />
-          </svg>
-          <span class="week-nav-label">{{ t('chat.title') }}</span>
-        </button>
       </nav>
       <div class="week-sidebar-bottom">
         <p class="week-privacy">{{ t('week.privacy') }}</p>
@@ -472,7 +465,7 @@ onUnmounted(() => {
 
     <div class="week-area">
       <header class="week-topbar">
-        <span>{{ t('week.personal') }} &nbsp;/&nbsp; <strong>{{ t(creatingSchedule ? 'create.title' : editingSchedule ? 'edit.title' : selectedScheduleId ? 'detail.title' : activeSection === 'history' ? 'history.title' : activeSection === 'reminders' ? 'reminders.title' : activeSection === 'emails' ? 'emailAudit.title' : activeSection === 'chat' ? 'chat.title' : 'week.title') }}</strong></span>
+        <span>{{ t('week.personal') }} &nbsp;/&nbsp; <strong>{{ t(creatingSchedule ? 'create.title' : editingSchedule ? 'edit.title' : selectedScheduleId ? 'detail.title' : activeSection === 'history' ? 'history.title' : activeSection === 'reminders' ? 'reminders.title' : activeSection === 'emails' ? 'emailAudit.title' : 'week.title') }}</strong></span>
         <span>{{ t('week.timezone') }}</span>
       </header>
       <main class="week-content">
@@ -490,7 +483,7 @@ onUnmounted(() => {
           @session-updated="emit('sessionUpdated', $event)" @session-expired="emit('sessionExpired')" />
         <ScheduleDetailView v-else-if="selectedScheduleId" :schedule="selectedSchedule" :loading="detailLoading"
           :error-key="detailErrorKey" :cancelling="cancellingSchedule" :cancel-error-key="cancelErrorKey"
-          :back-key="activeSection === 'history' ? 'history.back' : activeSection === 'emails' ? 'emailAudit.back' : activeSection === 'chat' ? 'chat.back' : 'detail.back'"
+          :back-key="activeSection === 'history' ? 'history.back' : activeSection === 'emails' ? 'emailAudit.back' : 'detail.back'"
           @back="closeDetail" @retry="loadDetail" @edit="openEdit" @cancel-confirmed="confirmCancel" />
         <HistoryView v-if="activeSection === 'history'" v-show="!selectedScheduleId" :session="props.session"
           @open-detail="openDetail" @session-updated="emit('sessionUpdated', $event)"
@@ -500,10 +493,6 @@ onUnmounted(() => {
         <EmailAuditView v-if="activeSection === 'emails'" v-show="!selectedScheduleId" :session="props.session"
           @open-schedule="openDetail" @session-updated="emit('sessionUpdated', $event)"
           @session-expired="emit('sessionExpired')" />
-        <ChatView v-if="chatVisited" v-show="activeSection === 'chat' && !selectedScheduleId && !creatingSchedule && !editingSchedule" :session="props.session"
-          @open-schedule="openDetail" @edit-create="openCreateFromChat" @edit-update="openEditFromChat"
-          @session-updated="emit('sessionUpdated', $event)" @session-expired="emit('sessionExpired')"
-          @schedule-changed="load" />
         <template v-if="activeSection === 'week' && !creatingSchedule && !selectedScheduleId">
           <div class="week-heading">
             <div><h1>{{ t('week.title') }}</h1><p>{{ t('week.subtitle') }}</p></div>
@@ -568,6 +557,11 @@ onUnmounted(() => {
         </template>
       </main>
     </div>
+
+    <ChatView :session="props.session"
+      @open-schedule="openDetail" @edit-create="openCreateFromChat" @edit-update="openEditFromChat"
+      @session-updated="emit('sessionUpdated', $event)" @session-expired="emit('sessionExpired')"
+      @schedule-changed="onChatScheduleChanged" />
 
     <LogoutConfirmModal :open="confirmingLogout" :logging-out="props.loggingOut"
       @close="confirmingLogout = false"
