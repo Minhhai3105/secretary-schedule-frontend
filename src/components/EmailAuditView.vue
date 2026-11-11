@@ -6,6 +6,7 @@ import {
   EmailAuditError, getEmailDelivery, listEmailDeliveries,
   type DeliveryKind, type DeliveryStatus, type EmailDeliveryDetail, type EmailDeliveryPage,
 } from '../services/emailDeliveries'
+import { getSchedule } from '../services/schedules'
 
 const props = defineProps<{ session: LoginResult }>()
 const emit = defineEmits<{
@@ -23,6 +24,7 @@ const toDate = ref('')
 const page = ref(1)
 const result = ref<EmailDeliveryPage | null>(null)
 const failureReasons = ref<Record<string, string>>({})
+const scheduleTitles = ref<Record<string, string>>({})
 const detail = ref<EmailDeliveryDetail | null>(null)
 const selectedId = ref<string | null>(null)
 const loading = ref(false)
@@ -30,6 +32,13 @@ const detailLoading = ref(false)
 const errorKey = ref('')
 const detailErrorKey = ref('')
 let detailRequest = 0
+
+function statusBadgeClass(value: DeliveryStatus): string {
+  if (value === 'sent') return 'workspace-badge-success'
+  if (value === 'failed' || value === 'cancelled') return 'workspace-badge-danger'
+  if (value === 'pending' || value === 'sending') return 'workspace-badge-warning'
+  return 'workspace-badge-neutral'
+}
 
 function dateTimeLabel(value: string | null): string {
   if (!value) return t('emailAudit.notAvailable')
@@ -44,6 +53,20 @@ function latestErrorMessage(item: EmailDeliveryDetail): string {
     if (message) return message
   }
   return ''
+}
+
+async function resolveScheduleTitles(accessToken: string, ids: (string | null | undefined)[]) {
+  const missing = [...new Set(ids.filter((id): id is string => Boolean(id && !scheduleTitles.value[id])))]
+  if (missing.length === 0) return
+  const settled = await Promise.allSettled(missing.map((id) => getSchedule(accessToken, id)))
+  const next = { ...scheduleTitles.value }
+  settled.forEach((outcome, index) => {
+    const scheduleId = missing[index]
+    if (scheduleId && outcome.status === 'fulfilled' && outcome.value.title) {
+      next[scheduleId] = outcome.value.title
+    }
+  })
+  scheduleTitles.value = next
 }
 
 async function load() {
@@ -84,6 +107,7 @@ async function load() {
         }
       })
     }
+    await resolveScheduleTitles(activeToken, data.deliveries.map((item) => item.schedule_id))
     failureReasons.value = reasons
     result.value = data
   } catch (cause) {
@@ -135,9 +159,10 @@ async function openDetail(id: string) {
   detailErrorKey.value = ''
   detailLoading.value = true
   try {
+    let activeToken = props.session.access_token
     let data: EmailDeliveryDetail
     try {
-      data = await getEmailDelivery(props.session.access_token, id)
+      data = await getEmailDelivery(activeToken, id)
     } catch (cause) {
       if (!(cause instanceof EmailAuditError) || cause.code !== 'unauthorized') throw cause
       const renewed = await refreshSession()
@@ -146,8 +171,10 @@ async function openDetail(id: string) {
         return
       }
       emit('sessionUpdated', renewed)
-      data = await getEmailDelivery(renewed.access_token, id)
+      activeToken = renewed.access_token
+      data = await getEmailDelivery(activeToken, id)
     }
+    await resolveScheduleTitles(activeToken, [data.schedule_id])
     if (request === detailRequest) detail.value = data
   } catch (cause) {
     if (request !== detailRequest) return
@@ -178,10 +205,10 @@ onMounted(() => { void load() })
 </script>
 
 <template>
-  <section class="col-12 col-xl-10 p-0">
-    <header class="mb-4">
-      <h1 class="h3 mb-1">{{ t('emailAudit.title') }}</h1>
-      <p class="text-secondary mb-0">{{ t('emailAudit.subtitle') }}</p>
+  <section class="workspace-page">
+    <header class="workspace-header">
+      <h1>{{ t('emailAudit.title') }}</h1>
+      <p>{{ t('emailAudit.subtitle') }}</p>
     </header>
 
     <template v-if="selectedId">
@@ -191,10 +218,10 @@ onMounted(() => { void load() })
         {{ t(detailErrorKey) }}
         <button class="btn btn-link btn-sm" type="button" @click="openDetail(selectedId)">{{ t('common.retry') }}</button>
       </div>
-      <div v-else-if="detail" class="card p-4">
+      <div v-else-if="detail" class="workspace-card">
         <div class="d-flex justify-content-between align-items-start gap-2 flex-wrap">
           <h2 class="h5 mb-0">{{ t(`emailAudit.kind.${detail.kind}`) }}</h2>
-          <span class="badge" :class="detail.status === 'sent' ? 'text-bg-success' : detail.status === 'failed' ? 'text-bg-danger' : 'text-bg-secondary'">
+          <span class="workspace-badge" :class="statusBadgeClass(detail.status)">
             {{ t(`emailAudit.status.${detail.status}`) }}
           </span>
         </div>
@@ -202,9 +229,12 @@ onMounted(() => { void load() })
           <dt class="col-sm-4">{{ t('emailAudit.dueAt') }}</dt><dd class="col-sm-8">{{ dateTimeLabel(detail.due_at_utc) }}</dd>
           <dt class="col-sm-4">{{ t('emailAudit.sentAt') }}</dt><dd class="col-sm-8">{{ dateTimeLabel(detail.sent_at_utc) }}</dd>
           <dt class="col-sm-4">{{ t('emailAudit.applicableDate') }}</dt><dd class="col-sm-8">{{ detail.applicable_date_vietnam || t('emailAudit.notAvailable') }}</dd>
-          <dt class="col-sm-4">{{ t('emailAudit.scheduleId') }}</dt>
+          <dt class="col-sm-4">{{ t('emailAudit.scheduleTitle') }}</dt>
           <dd class="col-sm-8 d-flex align-items-center gap-2 flex-wrap text-break">
-            <span>{{ detail.schedule_id || t('emailAudit.notAvailable') }}</span>
+            <span v-if="detail.schedule_id && scheduleTitles[detail.schedule_id]" class="fw-semibold">
+              {{ scheduleTitles[detail.schedule_id] }}
+            </span>
+            <span class="workspace-meta">{{ detail.schedule_id || t('emailAudit.notAvailable') }}</span>
             <button v-if="detail.schedule_id" class="btn btn-outline-primary btn-sm" type="button"
               @click="emit('openSchedule', detail.schedule_id)">
               {{ t('emailAudit.openSchedule') }}
@@ -212,11 +242,11 @@ onMounted(() => { void load() })
           </dd>
         </dl>
         <h3 class="h6 mt-4">{{ t('emailAudit.attempts') }}</h3>
-        <p v-if="detail.attempts.length === 0" class="text-secondary mb-0">{{ t('emailAudit.noAttempts') }}</p>
+        <p v-if="detail.attempts.length === 0" class="workspace-meta mb-0">{{ t('emailAudit.noAttempts') }}</p>
         <ol v-else class="list-group list-group-numbered">
           <li v-for="attempt in detail.attempts" :key="attempt.id" class="list-group-item">
             <strong>{{ t(`emailAudit.attemptStatus.${attempt.status}`) }}</strong>
-            <span class="d-block text-secondary small">{{ dateTimeLabel(attempt.started_at_utc) }} → {{ dateTimeLabel(attempt.finished_at_utc) }}</span>
+            <span class="d-block workspace-meta">{{ dateTimeLabel(attempt.started_at_utc) }} → {{ dateTimeLabel(attempt.finished_at_utc) }}</span>
             <p v-if="attempt.error_message" class="mb-0 mt-1 text-break">{{ attempt.error_message }}</p>
           </li>
         </ol>
@@ -224,30 +254,30 @@ onMounted(() => { void load() })
     </template>
 
     <template v-else>
-      <form class="row g-2 align-items-end mb-3" @submit.prevent="applyFilters">
-        <div class="col-12 col-sm-auto">
+      <form class="workspace-filter-bar" @submit.prevent="applyFilters">
+        <div>
           <label class="form-label" for="email-from">{{ t('emailAudit.fromLabel') }}</label>
           <input id="email-from" v-model="fromDate" class="form-control" type="date" :disabled="loading" @change="applyFilters" />
         </div>
-        <div class="col-12 col-sm-auto">
+        <div>
           <label class="form-label" for="email-to">{{ t('emailAudit.toLabel') }}</label>
           <input id="email-to" v-model="toDate" class="form-control" type="date" :disabled="loading" @change="applyFilters" />
         </div>
-        <div class="col-12 col-sm-auto">
+        <div>
           <label class="form-label" for="email-status">{{ t('emailAudit.statusLabel') }}</label>
           <select id="email-status" v-model="status" class="form-select" :disabled="loading" @change="applyFilters">
             <option value="">{{ t('emailAudit.all') }}</option>
             <option v-for="item in statuses" :key="item" :value="item">{{ t(`emailAudit.status.${item}`) }}</option>
           </select>
         </div>
-        <div class="col-12 col-sm-auto">
+        <div>
           <label class="form-label" for="email-kind">{{ t('emailAudit.kindLabel') }}</label>
           <select id="email-kind" v-model="kind" class="form-select" :disabled="loading" @change="applyFilters">
             <option value="">{{ t('emailAudit.all') }}</option>
             <option v-for="item in kinds" :key="item" :value="item">{{ t(`emailAudit.kind.${item}`) }}</option>
           </select>
         </div>
-        <div class="col-12 col-sm-auto d-flex gap-2">
+        <div class="d-flex gap-2">
           <button class="btn btn-primary" type="submit" :disabled="loading">{{ t('emailAudit.apply') }}</button>
           <button v-if="fromDate || toDate || status || kind" class="btn btn-outline-secondary" type="button"
             :disabled="loading" @click="resetFilters">{{ t('emailAudit.resetFilters') }}</button>
@@ -259,27 +289,37 @@ onMounted(() => { void load() })
         <button v-if="errorKey !== 'emailAudit.dateRangeError'" class="btn btn-link btn-sm" type="button" @click="load">{{ t('common.retry') }}</button>
       </div>
       <template v-else-if="result">
-        <p class="small text-secondary">{{ t('emailAudit.total', { count: result.paging.total }) }}</p>
-        <p v-if="result.deliveries.length === 0" class="alert alert-light" role="status">{{ t('emailAudit.empty') }}</p>
-        <div v-else class="list-group">
+        <p class="workspace-meta mb-2">{{ t('emailAudit.total', { count: result.paging.total }) }}</p>
+        <p v-if="result.deliveries.length === 0" class="week-empty-banner" role="status">{{ t('emailAudit.empty') }}</p>
+        <div v-else class="workspace-list">
           <article v-for="delivery in result.deliveries" :key="delivery.id"
-            class="list-group-item p-3" :class="{ 'border-danger bg-danger-subtle': delivery.status === 'failed' }">
+            class="workspace-list-item" :class="{ 'workspace-list-item-failed': delivery.status === 'failed' }">
             <button type="button" class="btn btn-link p-0 text-start text-decoration-none text-reset w-100"
               @click="openDetail(delivery.id)">
               <span class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
-                <strong>{{ t(`emailAudit.kind.${delivery.kind}`) }}</strong>
-                <span class="badge" :class="delivery.status === 'sent' ? 'text-bg-success' : delivery.status === 'failed' ? 'text-bg-danger' : 'text-bg-secondary'">
+                <strong>
+                  {{ t(`emailAudit.kind.${delivery.kind}`) }}
+                  <span v-if="delivery.schedule_id && scheduleTitles[delivery.schedule_id]" class="fw-normal">
+                    · {{ scheduleTitles[delivery.schedule_id] }}
+                  </span>
+                </strong>
+                <span class="workspace-badge" :class="statusBadgeClass(delivery.status)">
                   {{ t(`emailAudit.status.${delivery.status}`) }}
                 </span>
               </span>
-              <small class="d-block text-secondary mt-2">{{ t('emailAudit.dueAt') }}: {{ dateTimeLabel(delivery.due_at_utc) }}</small>
-              <small v-if="delivery.sent_at_utc" class="d-block text-secondary mt-1">{{ t('emailAudit.sentAt') }}: {{ dateTimeLabel(delivery.sent_at_utc) }}</small>
+              <small class="d-block workspace-meta mt-2">{{ t('emailAudit.dueAt') }}: {{ dateTimeLabel(delivery.due_at_utc) }}</small>
+              <small v-if="delivery.sent_at_utc" class="d-block workspace-meta mt-1">{{ t('emailAudit.sentAt') }}: {{ dateTimeLabel(delivery.sent_at_utc) }}</small>
               <p v-if="delivery.status === 'failed'" class="mb-0 mt-2 small text-danger fw-semibold text-break">
                 {{ t('emailAudit.failureReason') }}: {{ failureReasons[delivery.id] || t('emailAudit.unknownReason') }}
               </p>
             </button>
             <div v-if="delivery.schedule_id" class="mt-2 pt-2 border-top d-flex align-items-center justify-content-between gap-2 flex-wrap">
-              <small class="text-secondary text-break">{{ t('emailAudit.scheduleId') }}: {{ delivery.schedule_id }}</small>
+              <small class="workspace-meta text-break">
+                <template v-if="scheduleTitles[delivery.schedule_id]">
+                  {{ t('emailAudit.scheduleTitle') }}: <strong class="text-body">{{ scheduleTitles[delivery.schedule_id] }}</strong>
+                </template>
+                <template v-else>{{ t('emailAudit.scheduleId') }}: {{ delivery.schedule_id }}</template>
+              </small>
               <button class="btn btn-outline-primary btn-sm" type="button" @click="emit('openSchedule', delivery.schedule_id)">
                 {{ t('emailAudit.openSchedule') }}
               </button>

@@ -51,9 +51,11 @@
 .week-day { min-width: 145px; border-right: 1px solid #dce4ef; }
 .week-day:last-child { border-right: 0; }
 .week-day-today { background: #f3f7ff; }
-.week-day-heading { display: flex; flex-direction: column; align-items: center; gap: 4px; height: 86px; padding: 15px 8px 10px; border-bottom: 1px solid #dce4ef; color: #687991; font-size: 13px; }
+.week-day-heading { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; height: 86px; padding: 15px 8px 10px; border-bottom: 1px solid #dce4ef; color: #687991; font-size: 13px; }
 .week-day-heading strong { color: #253248; font-size: 16px; font-weight: 500; }
 .week-day-heading small { color: #1755c4; font-weight: 600; }
+.week-day-add { position: absolute; top: 8px; right: 8px; display: grid; place-items: center; width: 24px; height: 24px; padding: 0; border: 1px solid #dce4ef; border-radius: 6px; background: #fff; color: #1755c4; font-size: 16px; font-weight: 700; line-height: 1; cursor: pointer; }
+.week-day-add:hover:not(:disabled) { border-color: #b7d0ff; background: #eaf2ff; }
 .week-day-events { min-height: 460px; padding: 8px; }
 .week-event { min-height: 155px; margin-bottom: 10px; padding: 9px; border-left: 3px solid; border-radius: 6px; overflow-wrap: anywhere; }
 .week-event-online { border-color: #1755c4; background: #eaf2ff; }
@@ -66,7 +68,8 @@
 .week-mode { display: inline-block; padding: 2px 5px; border-radius: 3px; background: #fff; color: #1755c4; font-size: 11px; }
 .week-event-offline .week-mode { color: #138256; }
 .week-event small { display: block; margin-top: 10px; color: #687991; font-size: 11px; }
-.week-day-empty { margin-top: 80px; padding: 0 8px; color: #8a98ad; font-size: 12px; text-align: center; }
+.week-day-empty { display: block; width: 100%; margin-top: 80px; padding: 10px 8px; border: 1px dashed transparent; border-radius: 6px; background: transparent; color: #8a98ad; font-size: 12px; text-align: center; cursor: pointer; }
+.week-day-empty:hover:not(:disabled) { border-color: #b7d0ff; background: #f3f7ff; color: #1755c4; }
 .week-footer { margin-top: 16px; color: #72829a; font-size: 12px; }
 @media (max-width: 1100px) {
   .week-grid { display: flex; overflow-x: auto; }
