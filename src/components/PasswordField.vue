@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 
 interface Props {
   id: string
@@ -14,6 +15,7 @@ interface Props {
 const props = defineProps<Props>()
 const emit = defineEmits<{ 'update:modelValue': [value: string] }>()
 const visible = ref(false)
+const { t } = useI18n({ useScope: 'global' })
 
 function updateValue(event: Event) {
   emit('update:modelValue', (event.target as HTMLInputElement).value)
@@ -27,7 +29,7 @@ function updateValue(event: Event) {
       :value="props.modelValue" :autocomplete="props.autocomplete" :disabled="props.disabled"
       :minlength="props.minlength" :maxlength="props.maxlength" required @input="updateValue" />
     <button class="btn btn-outline-secondary" type="button" :disabled="props.disabled"
-      :aria-label="`${visible ? 'Ẩn' : 'Hiện'} ${props.label.toLowerCase()}`"
+      :aria-label="t(visible ? 'password.hide' : 'password.show', { label: props.label.toLowerCase() })"
       :aria-pressed="visible" :aria-controls="props.id" @click="visible = !visible">
       <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
         fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
