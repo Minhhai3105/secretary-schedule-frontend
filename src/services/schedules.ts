@@ -220,3 +220,43 @@ export async function cancelSchedule(accessToken: string, id: string, version: n
     throw new ScheduleCancelError('failed')
   }
 }
+
+export type HistoryType = 'all' | 'past' | 'cancelled'
+
+export interface ScheduleHistoryPage {
+  schedules: Schedule[]
+  paging: {
+    page: number
+    page_size: number
+    total: number
+    total_pages: number
+  }
+}
+
+export async function listScheduleHistory(
+  accessToken: string,
+  type: HistoryType,
+  page: number,
+  q = '',
+): Promise<ScheduleHistoryPage> {
+  const query = new URLSearchParams({ type, page: String(page) })
+  if (q.trim()) query.set('q', q.trim())
+
+  let response: Response
+  try {
+    response = await fetch(`${apiBaseUrl}/api/schedules/history?${query}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
+  } catch {
+    throw new ScheduleLoadError('network')
+  }
+
+  if (response.status === 401) throw new ScheduleLoadError('unauthorized')
+  if (!response.ok) throw new ScheduleLoadError('failed')
+
+  try {
+    return (await response.json()) as ScheduleHistoryPage
+  } catch {
+    throw new ScheduleLoadError('failed')
+  }
+}

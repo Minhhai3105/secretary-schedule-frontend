@@ -3,8 +3,9 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { Schedule } from '../services/schedules'
 import { vietnamDate, vietnamTime } from '../utils/week'
+import { isSelf } from '../utils/relatedPerson'
 
-const props = defineProps<{ schedule: Schedule | null; loading: boolean; errorKey: string; cancelling: boolean; cancelErrorKey: string }>()
+const props = defineProps<{ schedule: Schedule | null; loading: boolean; errorKey: string; cancelling: boolean; cancelErrorKey: string; backKey: string }>()
 const emit = defineEmits<{ back: []; retry: []; edit: []; cancelConfirmed: [] }>()
 const { locale, t } = useI18n({ useScope: 'global' })
 const confirmingCancel = ref(false)
@@ -52,7 +53,7 @@ const meetingLink = computed(() => {
     <div class="detail-heading">
       <h1>{{ t('detail.title') }}</h1>
       <p>{{ t('detail.subtitle') }}</p>
-      <button class="btn btn-link px-0" type="button" :disabled="props.cancelling" @click="emit('back')">{{ t('detail.back') }}</button>
+      <button class="btn btn-link px-0" type="button" :disabled="props.cancelling" @click="emit('back')">{{ t(props.backKey) }}</button>
     </div>
 
     <p v-if="props.loading" class="alert alert-light" role="status">{{ t('detail.loading') }}</p>
@@ -99,7 +100,7 @@ const meetingLink = computed(() => {
             · {{ props.schedule.location }}
           </template>
         </dd></div>
-        <div><dt>{{ t('detail.relatedPerson') }}</dt><dd>{{ props.schedule.related_person === 'Tôi' ? t('week.me') : props.schedule.related_person }}</dd></div>
+        <div><dt>{{ t('detail.relatedPerson') }}</dt><dd>{{ isSelf(props.schedule.related_person) ? t('week.me') : props.schedule.related_person }}</dd></div>
         <div><dt>{{ t('detail.preparation') }}</dt><dd class="detail-long-text">{{ props.schedule.preparation || t('detail.notProvided') }}</dd></div>
         <div><dt>{{ t('detail.notes') }}</dt><dd class="detail-long-text">{{ props.schedule.notes || t('detail.notProvided') }}</dd></div>
       </dl>
