@@ -6,8 +6,9 @@ import {
   cancelChatProposal, ChatError, confirmChatProposal, sendChatMessage,
   type ChatProposal, type ChatTurn,
 } from '../services/chat'
-import { getSchedule, ScheduleLoadError, type Schedule } from '../services/schedules'
+import { checkScheduleConflicts, getSchedule, ScheduleLoadError, type Schedule } from '../services/schedules'
 import { isSelf } from '../utils/relatedPerson'
+import { vietnamDate, vietnamTime } from '../utils/week'
 
 type ProposalState = 'pending' | 'confirmed' | 'cancelled' | 'stale' | 'uncertain'
 interface Message extends ChatTurn {
@@ -15,6 +16,7 @@ interface Message extends ChatTurn {
   proposal?: ChatProposal | null
   proposalState?: ProposalState
   proposalErrorKey?: string
+  proposalConflicts?: Schedule[]
   confirmedSchedule?: Schedule
   targetSchedule?: Schedule | null
 }
@@ -139,6 +141,11 @@ async function authorized<T>(run: (accessToken: string) => Promise<T>): Promise<
   }
 }
 
+function formatConflictTime(item: Schedule): string {
+  const start = `${vietnamDate(item.starts_at_utc)} ${vietnamTime(item.starts_at_utc)}`
+  return item.ends_at_utc ? `${start} → ${vietnamTime(item.ends_at_utc)}` : start
+}
+
 async function send() {
   const message = draft.value.trim()
   if (sending.value || processing.value || pendingProposal.value || !message) return
@@ -149,14 +156,45 @@ async function send() {
   try {
     const response = await authorized((token) => sendChatMessage(token, message, history))
     let targetSchedule: Schedule | null = null
+    let proposalConflicts: Schedule[] = []
     if (response.proposal?.schedule_id) {
       targetSchedule = await fetchTargetSchedule(response.proposal.schedule_id)
+    }
+    if (response.proposal && (response.proposal.action === 'create' || response.proposal.action === 'update')) {
+      const data = response.proposal.proposed_data
+      let startsAt: string | null = null
+      if (Object.hasOwn(data, 'starts_at_utc')) {
+        startsAt = typeof data.starts_at_utc === 'string' ? data.starts_at_utc : null
+      } else if (response.proposal.action === 'update' && targetSchedule?.starts_at_utc) {
+        startsAt = targetSchedule.starts_at_utc
+      }
+
+      let endsAt: string | null = null
+      if (Object.hasOwn(data, 'ends_at_utc')) {
+        endsAt = typeof data.ends_at_utc === 'string' ? data.ends_at_utc : null
+      } else if (response.proposal.action === 'update' && targetSchedule?.ends_at_utc) {
+        endsAt = targetSchedule.ends_at_utc
+      }
+
+      if (startsAt) {
+        try {
+          const conflictRes = await checkScheduleConflicts(
+            props.session.access_token,
+            startsAt,
+            endsAt,
+            response.proposal.action === 'update' ? response.proposal.schedule_id : null,
+          )
+          proposalConflicts = conflictRes.conflicts
+        } catch {
+          // ignore non-blocking conflict check
+        }
+      }
     }
     messages.value.push({ role: 'user', content: message })
     messages.value.push({
       role: 'assistant', content: response.answer, schedules: response.schedules,
       proposal: response.proposal, proposalState: response.proposal ? 'pending' : undefined,
-      targetSchedule,
+      proposalConflicts, targetSchedule,
     })
     if (!isOpen.value) hasUnread.value = true
     draft.value = ''
@@ -357,18 +395,28 @@ onUnmounted(() => { if (expiryTimer) clearInterval(expiryTimer) })
               </div>
               <p v-else-if="item.proposalState === 'cancelled'" class="workspace-meta small mb-0">{{ t('chat.cancelled') }}</p>
               <p v-else-if="item.proposalState === 'pending' && isExpired(item.proposal)" class="workspace-meta small mb-0">{{ t('chat.expired') }}</p>
-              <div v-else-if="item.proposalState === 'pending'" class="d-flex gap-2 flex-wrap">
-                <button class="btn btn-primary btn-sm" type="button" :disabled="processing" @click="processProposal(item, 'confirm')">
-                  {{ t(processing ? 'chat.processing' : 'chat.confirm') }}
-                </button>
-                <button v-if="item.proposal.action === 'create' || item.proposal.action === 'update'"
-                  class="btn btn-outline-primary btn-sm" type="button" :disabled="processing" @click="editProposal(item)">
-                  {{ t('chat.editProposal') }}
-                </button>
-                <button class="btn btn-outline-secondary btn-sm" type="button" :disabled="processing" @click="processProposal(item, 'cancel')">
-                  {{ t('chat.cancelProposal') }}
-                </button>
-              </div>
+              <template v-else-if="item.proposalState === 'pending'">
+                <div v-if="item.proposalConflicts && item.proposalConflicts.length > 0" class="alert alert-warning small py-1 px-2 mb-2" role="alert">
+                  <div class="fw-semibold">{{ t('chat.conflictWarning', { count: item.proposalConflicts.length }) }}</div>
+                  <ul class="mb-0 ps-3">
+                    <li v-for="c in item.proposalConflicts" :key="c.id">
+                      <strong>{{ c.title }}</strong> ({{ formatConflictTime(c) }})
+                    </li>
+                  </ul>
+                </div>
+                <div class="d-flex gap-2 flex-wrap">
+                  <button class="btn btn-primary btn-sm" type="button" :disabled="processing" @click="processProposal(item, 'confirm')">
+                    {{ t(processing ? 'chat.processing' : 'chat.confirm') }}
+                  </button>
+                  <button v-if="item.proposal.action === 'create' || item.proposal.action === 'update'"
+                    class="btn btn-outline-primary btn-sm" type="button" :disabled="processing" @click="editProposal(item)">
+                    {{ t('chat.editProposal') }}
+                  </button>
+                  <button class="btn btn-outline-secondary btn-sm" type="button" :disabled="processing" @click="processProposal(item, 'cancel')">
+                    {{ t('chat.cancelProposal') }}
+                  </button>
+                </div>
+              </template>
             </div>
           </div>
         </div>

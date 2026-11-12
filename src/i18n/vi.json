@@ -161,7 +161,14 @@
     "viewCreated": "Xem lịch vừa tạo",
     "backToForm": "Về biểu mẫu",
     "timezone": "Thời gian hiển thị theo giờ Việt Nam (UTC+7).",
-    "pastWarning": "Thời gian bắt đầu nằm trong quá khứ. Hệ thống vẫn cho phép lưu để ghi nhận nhưng sẽ không gửi email nhắc cho lịch này."
+    "pastWarning": "Thời gian bắt đầu nằm trong quá khứ. Hệ thống vẫn cho phép lưu để ghi nhận nhưng sẽ không gửi email nhắc cho lịch này.",
+    "conflictBanner": "Phát hiện trùng lịch: Khung giờ này đang trùng với {count} lịch trình khác.",
+    "conflictModalTitle": "Cảnh báo trùng lịch",
+    "conflictModalMessage": "Khung giờ bạn chọn đang trùng với các lịch trình sau. Bạn có chắc chắn vẫn muốn lưu không?",
+    "conflictProceed": "Vẫn lưu lịch",
+    "conflictChooseAnother": "Chọn lại giờ",
+    "conflictItem": "{title} ({time})",
+    "conflictCheckFailed": "Không thể kiểm tra trùng lịch do lỗi kết nối. Bạn có muốn thử lại hay vẫn lưu lịch?"
   },
   "edit": {
     "title": "Sửa lịch",
@@ -176,7 +183,13 @@
     "validationError": "Dữ liệu chưa hợp lệ. Vui lòng kiểm tra lại các trường.",
     "networkError": "Không thể xác nhận kết quả lưu. Hãy tải lại chi tiết trước khi thử lại để tránh ghi đè.",
     "saveError": "Chưa thể lưu thay đổi. Dữ liệu đã nhập vẫn được giữ lại.",
-    "reload": "Tải lại chi tiết"
+    "reload": "Tải lại chi tiết",
+    "conflictBanner": "Phát hiện trùng lịch: Khung giờ này đang trùng với {count} lịch trình khác.",
+    "conflictModalTitle": "Cảnh báo trùng lịch",
+    "conflictModalMessage": "Khung giờ bạn chọn đang trùng với các lịch trình sau. Bạn có chắc chắn vẫn muốn lưu thay đổi không?",
+    "conflictProceed": "Vẫn lưu thay đổi",
+    "conflictChooseAnother": "Chọn lại giờ",
+    "conflictCheckFailed": "Không thể kiểm tra trùng lịch do lỗi kết nối. Bạn có muốn thử lại hay vẫn lưu thay đổi?"
   },
   "detail": {
     "edit": "Sửa lịch",
@@ -349,6 +362,7 @@
     "uncertainError": "Chưa xác định được thao tác đã hoàn tất hay chưa. Hãy kiểm tra lịch trước khi thực hiện lại.",
     "staleError": "Đề xuất không còn hiệu lực hoặc lịch đã thay đổi. Hãy gửi yêu cầu mới.",
     "actionError": "Chưa thể xử lý đề xuất. Vui lòng thử lại.",
+    "conflictWarning": "Trùng {count} lịch trình khác trong khung giờ này:",
     "action": {
       "create": "Đề xuất tạo lịch",
       "update": "Đề xuất sửa lịch",
