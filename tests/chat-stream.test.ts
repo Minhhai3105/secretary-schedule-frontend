@@ -53,6 +53,7 @@ test('SSE refuses truncated, malformed, unfinished and error streams without acc
   const payload = JSON.stringify({ answer: 'Hello', schedules: [], proposal: null })
   const invalid = [
     chunk(payload),
+    chunk(payload) + chunk(undefined, 'stop'),
     chunk(payload) + 'data: [DONE]\n\n',
     chunk(payload) + chunk(undefined, 'length') + 'data: [DONE]\n\n',
     chunk('{"answer":"Partial') + 'data: {"error":{"code":"stream_failed"}}\n\n',
@@ -76,7 +77,7 @@ test('SSE handles escaped Unicode split between events and only calls fetch once
   try {
     const result = await streamChatMessage('jwt', 'Hi', (answer) => assert.ok(!answer.endsWith('\uD83D')))
     assert.equal(result.answer, 'Hi😀')
-    for (const [status, code] of [[401, 'unauthorized'], [400, 'validation'], [502, 'failed']] as const) {
+    for (const [status, code] of [[401, 'unauthorized'], [400, 'validation'], [429, 'failed'], [502, 'failed']] as const) {
       let calls = 0
       globalThis.fetch = async () => { calls++; return new Response('', { status }) }
       await assert.rejects(streamChatMessage('jwt', 'Hi', () => {}), (error: unknown) =>
@@ -100,6 +101,45 @@ test('unmount abort cancels an in-flight stream without retrying', async () => {
     const result = streamChatMessage('jwt', 'Hi', () => {}, controller.signal)
     controller.abort()
     await assert.rejects(result, (error: unknown) => error instanceof ChatError && error.code === 'network')
+    assert.equal(calls, 1)
+  } finally { globalThis.fetch = previousFetch }
+})
+
+test('SDK emits a provisional answer while the HTTP response is still open', { timeout: 3000 }, async () => {
+  const previousFetch = globalThis.fetch
+  const ready = Promise.withResolvers<void>()
+  let controller: ReadableStreamDefaultController<Uint8Array>
+  const encode = (value: string) => new TextEncoder().encode(value)
+  const stream = new ReadableStream<Uint8Array>({ start(value) { controller = value } })
+  globalThis.fetch = async () => new Response(stream, { headers: { 'Content-Type': 'text/event-stream' } })
+  try {
+    let complete = false
+    const result = streamChatMessage('jwt', 'Hello', (answer) => {
+      assert.equal(complete, false)
+      if (answer === 'Live') ready.resolve()
+    })
+    controller!.enqueue(encode(chunk('{"answer":"Live')))
+    await ready.promise
+    controller!.enqueue(encode(chunk(' answer","schedules":[],"proposal":null}')
+      + chunk(undefined, 'stop') + 'data: [DONE]\n\n'))
+    controller!.close()
+    const final = await result
+    complete = true
+    assert.equal(final.answer, 'Live answer')
+    assert.equal(final.proposal, null)
+  } finally { globalThis.fetch = previousFetch }
+})
+
+test('SDK transport rejects an oversized stream without retrying the request', async () => {
+  const previousFetch = globalThis.fetch
+  let calls = 0
+  globalThis.fetch = async () => {
+    calls++
+    return new Response(new Uint8Array(1_000_001), { headers: { 'Content-Type': 'text/event-stream' } })
+  }
+  try {
+    await assert.rejects(streamChatMessage('jwt', 'Hello', () => {}), (error: unknown) =>
+      error instanceof ChatError && error.code === 'failed')
     assert.equal(calls, 1)
   } finally { globalThis.fetch = previousFetch }
 })

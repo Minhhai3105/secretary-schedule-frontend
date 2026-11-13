@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { ChatError, sendChatMessage } from '../src/services/chat.ts'
+import responseFormat from '../src/contracts/chat-response-format.json' with { type: 'json' }
 
 function envelope(content: unknown, finishReason = 'stop') {
   return {
@@ -26,10 +27,12 @@ test('chat uses the completions request contract and parses structured content',
     const body = JSON.parse(String(requestOptions?.body))
     assert.deepEqual(body.messages, [{ role: 'user', content: 'Plan reading' }])
     assert.equal(body.model, 'secretary-schedule')
-    assert.equal(body.stream, false)
+    assert.equal(body.stream ?? false, false)
     assert.equal(body.response_format.type, 'json_schema')
     assert.equal(body.response_format.json_schema.strict, true)
     assert.equal(body.response_format.json_schema.schema.additionalProperties, false)
+    assert.deepEqual(body.response_format, responseFormat)
+    assert.deepEqual(Object.keys(body).sort(), ['messages', 'model', 'response_format'])
     assert.deepEqual(result, { answer: 'What time?', schedules: [], proposal: null })
   } finally {
     globalThis.fetch = previousFetch
@@ -77,12 +80,39 @@ test('malformed, unfinished and duplicate proposal responses become controlled c
 test('completion HTTP errors preserve refresh, validation and server-error handling', async () => {
   const previousFetch = globalThis.fetch
   try {
-    for (const [status, code] of [[401, 'unauthorized'], [400, 'validation'], [502, 'failed']] as const) {
-      globalThis.fetch = async () => Response.json({ error: { message: 'Test error' } }, { status })
+    for (const [status, code] of [[401, 'unauthorized'], [400, 'validation'], [429, 'failed'], [502, 'failed']] as const) {
+      let calls = 0
+      globalThis.fetch = async () => { calls++; return Response.json({ error: { message: 'Test error' } }, { status }) }
       await assert.rejects(sendChatMessage('token', 'Hello'), (error: unknown) =>
         error instanceof ChatError && error.code === code)
+      assert.equal(calls, 1)
     }
   } finally {
     globalThis.fetch = previousFetch
   }
+})
+
+test('SDK attaches the current session token for every call without reusing an earlier JWT', async () => {
+  const previousFetch = globalThis.fetch
+  const headers: (string | null)[] = []
+  globalThis.fetch = async (_, options) => {
+    headers.push(new Headers(options?.headers).get('Authorization'))
+    return Response.json(envelope({ answer: 'Hello', schedules: [], proposal: null }))
+  }
+  try {
+    await sendChatMessage('access-before-refresh', 'Hello')
+    await sendChatMessage('access-after-refresh', 'Hello again')
+    assert.deepEqual(headers, ['Bearer access-before-refresh', 'Bearer access-after-refresh'])
+  } finally { globalThis.fetch = previousFetch }
+})
+
+test('SDK rejects JSON with invalid proposal metadata against the generated response schema', async () => {
+  const previousFetch = globalThis.fetch
+  globalThis.fetch = async () => Response.json(envelope({ answer: 'Confirm', schedules: [], proposal: {
+    action: 'create', proposed_data: [],
+  } }))
+  try {
+    await assert.rejects(sendChatMessage('jwt', 'Hello'), (error: unknown) =>
+      error instanceof ChatError && error.code === 'failed')
+  } finally { globalThis.fetch = previousFetch }
 })
