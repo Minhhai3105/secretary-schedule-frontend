@@ -1,0 +1,271 @@
+{
+  "type": "json_schema",
+  "json_schema": {
+    "name": "schedule_assistant_response",
+    "strict": true,
+    "schema": {
+      "$defs": {
+        "CompletionProposal": {
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "title": "Id",
+              "type": "string"
+            },
+            "action": {
+              "enum": [
+                "create",
+                "update",
+                "cancel"
+              ],
+              "title": "Action",
+              "type": "string"
+            },
+            "schedule_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Schedule Id"
+            },
+            "schedule_version": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Schedule Version"
+            },
+            "proposed_data": {
+              "items": {
+                "$ref": "#/$defs/ProposalField"
+              },
+              "title": "Proposed Data",
+              "type": "array"
+            },
+            "expires_at_utc": {
+              "title": "Expires At Utc",
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "action",
+            "schedule_id",
+            "schedule_version",
+            "proposed_data",
+            "expires_at_utc"
+          ],
+          "title": "CompletionProposal",
+          "type": "object"
+        },
+        "CompletionSchedule": {
+          "additionalProperties": false,
+          "properties": {
+            "title": {
+              "maxLength": 255,
+              "minLength": 1,
+              "title": "Title",
+              "type": "string"
+            },
+            "starts_at_utc": {
+              "title": "Starts At Utc",
+              "type": "string"
+            },
+            "ends_at_utc": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ends At Utc"
+            },
+            "meeting_mode": {
+              "enum": [
+                "online",
+                "offline"
+              ],
+              "title": "Meeting Mode",
+              "type": "string"
+            },
+            "location": {
+              "anyOf": [
+                {
+                  "maxLength": 500,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Location"
+            },
+            "meeting_url": {
+              "anyOf": [
+                {
+                  "maxLength": 2048,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Meeting Url"
+            },
+            "related_person": {
+              "maxLength": 255,
+              "title": "Related Person",
+              "type": "string"
+            },
+            "preparation": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Preparation"
+            },
+            "notes": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Notes"
+            },
+            "id": {
+              "title": "Id",
+              "type": "string"
+            },
+            "cancelled_at_utc": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cancelled At Utc"
+            },
+            "version": {
+              "title": "Version",
+              "type": "integer"
+            },
+            "status": {
+              "enum": [
+                "upcoming",
+                "past",
+                "cancelled"
+              ],
+              "title": "Status",
+              "type": "string"
+            }
+          },
+          "required": [
+            "title",
+            "starts_at_utc",
+            "ends_at_utc",
+            "meeting_mode",
+            "location",
+            "meeting_url",
+            "related_person",
+            "preparation",
+            "notes",
+            "id",
+            "cancelled_at_utc",
+            "version",
+            "status"
+          ],
+          "title": "CompletionSchedule",
+          "type": "object"
+        },
+        "ProposalField": {
+          "additionalProperties": false,
+          "properties": {
+            "field": {
+              "enum": [
+                "title",
+                "starts_at_utc",
+                "ends_at_utc",
+                "meeting_mode",
+                "location",
+                "meeting_url",
+                "related_person",
+                "preparation",
+                "notes"
+              ],
+              "title": "Field",
+              "type": "string"
+            },
+            "value": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Value"
+            }
+          },
+          "required": [
+            "field",
+            "value"
+          ],
+          "title": "ProposalField",
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "properties": {
+        "answer": {
+          "title": "Answer",
+          "type": "string"
+        },
+        "schedules": {
+          "items": {
+            "$ref": "#/$defs/CompletionSchedule"
+          },
+          "title": "Schedules",
+          "type": "array"
+        },
+        "proposal": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CompletionProposal"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "answer",
+        "schedules",
+        "proposal"
+      ],
+      "title": "CompletionContent",
+      "type": "object"
+    }
+  }
+}

@@ -99,7 +99,7 @@
   min-height: 48px;
 }
 
-.login-form-wrap .btn {
+.login-form-wrap .btn-primary {
   min-height: 42px;
   background: #245bd3;
 }
