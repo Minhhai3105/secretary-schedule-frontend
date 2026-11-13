@@ -3,7 +3,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { AuthError, refreshSession, type LoginResult } from '../services/auth'
 import {
-  cancelChatProposal, ChatError, confirmChatProposal, listChatMessages, sendChatMessage,
+  cancelChatProposal, ChatError, confirmChatProposal, listChatMessages, streamChatMessage,
   type ChatHistoryItem, type ChatProposal, type ChatTurn,
 } from '../services/chat'
 import { getSchedule, ScheduleLoadError, type Schedule } from '../services/schedules'
@@ -17,6 +17,7 @@ interface Message extends ChatTurn {
   proposalState?: ProposalState
   proposalErrorKey?: string
   confirmedSchedule?: Schedule
+  interrupted?: boolean
   targetSchedule?: Schedule | null
 }
 
@@ -46,6 +47,7 @@ const chatLogRef = ref<HTMLElement | null>(null)
 const messageInputRef = ref<HTMLTextAreaElement | null>(null)
 let expiryTimer: ReturnType<typeof setInterval> | undefined
 let localMessageId = 0
+let sendController: AbortController | undefined
 const starterKeys = ['chat.suggestions.today', 'chat.suggestions.week', 'chat.suggestions.create']
 const pendingProposal = computed(() => messages.value.some((item) =>
   item.proposal && item.proposalState === 'pending' && !isExpired(item.proposal)))
@@ -193,23 +195,38 @@ async function send() {
   if (!historyLoaded.value || sending.value || processing.value || pendingProposal.value || !message) return
   sending.value = true
   sendErrorKey.value = ''
+  sendController = new AbortController()
+  const signal = sendController.signal
+  const userId = `local-${++localMessageId}`
+  const assistantId = `local-${++localMessageId}`
+  messages.value.push({ id: userId, role: 'user', content: message })
+  messages.value.push({ id: assistantId, role: 'assistant', content: '' })
   scrollToBottom()
   try {
-    const response = await authorized((token) => sendChatMessage(token, message))
+    const response = await authorized((token) => streamChatMessage(token, message, (answer) => {
+      const item = messages.value.find((entry) => entry.id === assistantId)
+      if (item) item.content = answer
+      scrollToBottom()
+    }, signal))
     let targetSchedule: Schedule | null = null
     if (response.proposal?.schedule_id) {
       targetSchedule = await fetchTargetSchedule(response.proposal.schedule_id)
     }
-    messages.value.push({ id: `local-${++localMessageId}`, role: 'user', content: message })
-    messages.value.push({
-      id: `local-${++localMessageId}`, role: 'assistant', content: response.answer, schedules: response.schedules,
-      proposal: response.proposal, proposalState: response.proposal ? 'pending' : undefined,
-      targetSchedule,
+    const item = messages.value.find((entry) => entry.id === assistantId)
+    if (item) Object.assign(item, {
+      content: response.answer, schedules: response.schedules,
+      proposal: response.proposal, proposalState: response.proposal ? 'pending' : undefined, targetSchedule,
     })
     if (!isOpen.value) hasUnread.value = true
     draft.value = ''
     scrollToBottom()
   } catch (cause) {
+    if (signal.aborted) return
+    const item = messages.value.find((entry) => entry.id === assistantId)
+    if (item) item.interrupted = true
+    // A disconnected response may already be saved. Reload before any manual retry.
+    historyLoaded.value = false
+    historyErrorKey.value = 'chat.streamInterrupted'
     if (cause instanceof ChatError && cause.code === 'unauthorized') {
       emit('sessionExpired')
     } else if ((cause instanceof ChatError && cause.code === 'network')
@@ -221,6 +238,7 @@ async function send() {
       sendErrorKey.value = 'chat.sendError'
     }
   } finally {
+    sendController = undefined
     sending.value = false
   }
 }
@@ -318,7 +336,10 @@ async function editProposal(item: Message) {
 }
 
 onMounted(() => { expiryTimer = setInterval(() => { nowMs.value = Date.now() }, 15000) })
-onUnmounted(() => { if (expiryTimer) clearInterval(expiryTimer) })
+onUnmounted(() => {
+  if (expiryTimer) clearInterval(expiryTimer)
+  sendController?.abort()
+})
 </script>
 
 <template>
@@ -347,11 +368,12 @@ onUnmounted(() => { if (expiryTimer) clearInterval(expiryTimer) })
 
       <div ref="chatLogRef" class="workspace-chat-log chat-floating-log" aria-live="polite">
         <button v-if="historyCursor && !loadingHistory" class="btn btn-link btn-sm" type="button"
-          @click="loadHistory()">{{ t('chat.loadOlder') }}</button>
+          :disabled="sending || processing" @click="loadHistory()">{{ t('chat.loadOlder') }}</button>
         <p v-if="loadingHistory" class="workspace-meta small" role="status">{{ t('chat.loadingHistory') }}</p>
         <div v-if="historyErrorKey" class="alert alert-warning small" role="alert">
           {{ t(historyErrorKey) }}
-          <button class="btn btn-link btn-sm" type="button" @click="loadHistory(!historyLoaded)">{{ t('common.retry') }}</button>
+          <button class="btn btn-link btn-sm" type="button" :disabled="sending || processing"
+            @click="loadHistory(!historyLoaded)">{{ t('common.retry') }}</button>
         </div>
         <div v-if="historyLoaded && messages.length === 0" class="workspace-chat-empty">
           <p class="mb-0">{{ t('chat.empty') }}</p>
@@ -367,6 +389,7 @@ onUnmounted(() => { if (expiryTimer) clearInterval(expiryTimer) })
           :class="item.role === 'user' ? 'justify-content-end' : 'justify-content-start'">
           <div :class="item.role === 'user' ? 'workspace-chat-bubble-user' : 'workspace-chat-bubble-assistant'">
             <p class="mb-0" style="white-space: pre-wrap">{{ item.content }}</p>
+            <p v-if="item.interrupted" class="text-warning small mb-0">{{ t('chat.streamInterrupted') }}</p>
             <div v-if="item.schedules?.length" class="mt-3">
               <h3 class="h6">{{ t('chat.relatedSchedules') }}</h3>
               <ul class="mb-0 ps-3">

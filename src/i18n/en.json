@@ -304,6 +304,7 @@
     }
   },
   "chat": {
+    "streamInterrupted": "The response was interrupted. Reload history before sending again.",
     "title": "AI assistant",
     "subtitle": "Ask about schedules or propose creating, editing, or cancelling an event.",
     "openBubble": "Open AI assistant",
