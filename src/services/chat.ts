@@ -1,4 +1,5 @@
 import type { Schedule } from './schedules'
+import responseFormat from '../contracts/chat-response-format.json' with { type: 'json' }
 
 export interface ChatTurn {
   role: 'user' | 'assistant'
@@ -44,7 +45,7 @@ export class ChatError extends Error {
   }
 }
 
-const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? `http://${window.location.hostname}:8000`
+const apiBaseUrl = import.meta.env?.VITE_API_BASE_URL ?? (typeof window !== 'undefined' ? `http://${window.location.hostname}:8000` : 'http://localhost:8000')
 
 async function post<T>(accessToken: string, path: string, body?: object): Promise<T> {
   let response: Response
@@ -64,7 +65,7 @@ async function post<T>(accessToken: string, path: string, body?: object): Promis
   if (response.status === 401) throw new ChatError('unauthorized')
   if (response.status === 404) throw new ChatError('notFound')
   if (response.status === 409) throw new ChatError('conflict')
-  if (response.status === 422) throw new ChatError('validation')
+  if (response.status === 400 || response.status === 422) throw new ChatError('validation')
   if (!response.ok) throw new ChatError('failed')
   if (response.status === 204) return undefined as T
   try {
@@ -94,8 +95,40 @@ export async function listChatMessages(accessToken: string, cursor?: string): Pr
   }
 }
 
-export function sendChatMessage(accessToken: string, message: string): Promise<ChatMessageResponse> {
-  return post(accessToken, '/api/chat/messages', { message })
+export async function sendChatMessage(accessToken: string, message: string): Promise<ChatMessageResponse> {
+  const completion = await post<{
+    object: string
+    choices: { finish_reason: string; message: { role: string; content: string } }[]
+  }>(accessToken, '/v1/chat/completions', {
+    model: 'secretary-schedule',
+    messages: [{ role: 'user', content: message }],
+    stream: false,
+    response_format: responseFormat,
+  })
+  try {
+    const choice = completion.choices?.[0]
+    if (completion.object !== 'chat.completion' || completion.choices.length !== 1
+      || choice?.finish_reason !== 'stop' || choice.message.role !== 'assistant'
+      || typeof choice.message.content !== 'string') throw new Error('Invalid completion')
+    const payload = JSON.parse(choice.message.content)
+    if (typeof payload.answer !== 'string' || !Array.isArray(payload.schedules)
+      || (payload.proposal !== null && (typeof payload.proposal !== 'object'
+        || !Array.isArray(payload.proposal.proposed_data)))) throw new Error('Invalid chat content')
+    let proposal: ChatProposal | null = null
+    if (payload.proposal !== null) {
+      const data: Record<string, unknown> = {}
+      const allowed = new Set<string>(responseFormat.json_schema.schema.$defs.ProposalField.properties.field.enum)
+      for (const item of payload.proposal.proposed_data) {
+        if (!item || !allowed.has(item.field) || Object.hasOwn(data, item.field)
+          || (item.value !== null && typeof item.value !== 'string')) throw new Error('Invalid proposal field')
+        data[item.field] = item.value
+      }
+      proposal = { ...payload.proposal, proposed_data: data }
+    }
+    return { answer: payload.answer, schedules: payload.schedules, proposal }
+  } catch {
+    throw new ChatError('failed')
+  }
 }
 
 export function confirmChatProposal(accessToken: string, id: string): Promise<{ schedule: Schedule }> {
