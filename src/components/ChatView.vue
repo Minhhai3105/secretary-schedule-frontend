@@ -234,6 +234,8 @@ async function send() {
       sendErrorKey.value = 'chat.networkError'
     } else if (cause instanceof ChatError && cause.code === 'validation') {
       sendErrorKey.value = 'chat.validationError'
+    } else if (cause instanceof ChatError && cause.code === 'unavailable') {
+      sendErrorKey.value = 'chat.unavailableError'
     } else {
       sendErrorKey.value = 'chat.sendError'
     }

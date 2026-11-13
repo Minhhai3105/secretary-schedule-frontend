@@ -33,7 +33,7 @@ export interface ChatHistoryPage {
   next_cursor: string | null
 }
 
-export type ChatErrorCode = 'network' | 'unauthorized' | 'notFound' | 'conflict' | 'validation' | 'failed'
+export type ChatErrorCode = 'network' | 'unauthorized' | 'notFound' | 'conflict' | 'validation' | 'unavailable' | 'failed'
 
 export class ChatError extends Error {
   readonly code: ChatErrorCode

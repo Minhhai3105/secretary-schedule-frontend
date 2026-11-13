@@ -80,7 +80,7 @@ test('malformed, unfinished and duplicate proposal responses become controlled c
 test('completion HTTP errors preserve refresh, validation and server-error handling', async () => {
   const previousFetch = globalThis.fetch
   try {
-    for (const [status, code] of [[401, 'unauthorized'], [400, 'validation'], [429, 'failed'], [502, 'failed']] as const) {
+    for (const [status, code] of [[401, 'unauthorized'], [400, 'validation'], [429, 'failed'], [502, 'failed'], [503, 'unavailable']] as const) {
       let calls = 0
       globalThis.fetch = async () => { calls++; return Response.json({ error: { message: 'Test error' } }, { status }) }
       await assert.rejects(sendChatMessage('token', 'Hello'), (error: unknown) =>

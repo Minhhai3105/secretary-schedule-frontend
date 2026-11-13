@@ -304,6 +304,7 @@
     }
   },
   "chat": {
+    "unavailableError": "The AI service is currently unavailable. Reload history and try again later.",
     "streamInterrupted": "The response was interrupted. Reload history before sending again.",
     "title": "AI assistant",
     "subtitle": "Ask about schedules or propose creating, editing, or cancelling an event.",

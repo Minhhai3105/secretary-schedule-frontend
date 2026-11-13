@@ -304,6 +304,7 @@
     }
   },
   "chat": {
+    "unavailableError": "Dịch vụ AI hiện không khả dụng. Tải lại lịch sử và thử lại sau.",
     "streamInterrupted": "Luồng trả lời bị gián đoạn. Tải lại lịch sử trước khi gửi tiếp.",
     "title": "Trợ lý AI",
     "subtitle": "Hỏi về lịch hoặc đề xuất tạo, sửa, hủy lịch bằng ngôn ngữ tự nhiên.",

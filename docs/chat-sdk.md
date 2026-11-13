@@ -23,6 +23,7 @@ The current Vue component does not use the SDK's Chat UI state. Therefore a `Cha
 - Wait for a successful finish and the complete validated object before returning proposal data to the UI.
 - Reject duplicate proposal fields and preserve the difference between absent fields and explicit null values when converting field/value pairs into the existing dictionary.
 - Translate SDK failures into the existing `ChatError` codes. HTTP 401 permits the existing refresh flow before a new authorized request; in-stream failures never automatically resend a message.
+- Map HTTP 503 and the safe in-stream `ai_unavailable` code to a localized AI-service-unavailable message. Preserve the first stream error so subsequent EOF/terminal-marker failures do not hide the provider failure.
 - Keep the small transport guard for the 1 MB limit and mandatory `[DONE]`. The SDK itself ignores that marker and accepts EOF after a stop chunk. The guard checks the stream tail, not individual SSE events.
 - Hide a temporary trailing UTF-16 high surrogate while partial JSON is repaired, so a split emoji is not rendered as a broken character.
 

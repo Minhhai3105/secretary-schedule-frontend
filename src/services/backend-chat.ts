@@ -65,7 +65,11 @@ function completionOutput() {
 }
 
 export function backendFailureCode(cause: unknown): ChatErrorCode {
+  if (cause && typeof cause === 'object' && 'code' in cause && cause.code === 'ai_unavailable') {
+    return 'unavailable'
+  }
   if (APICallError.isInstance(cause)) {
+    if (cause.statusCode === 503) return 'unavailable'
     if (cause.statusCode === 401) return 'unauthorized'
     if (cause.statusCode === 404) return 'notFound'
     if (cause.statusCode === 409) return 'conflict'
@@ -96,7 +100,7 @@ export async function streamBackendChat(
       output: completionOutput(), abortSignal: signal, timeout: 180_000,
       maxRetries: 0, streamRetries: 0,
       providerOptions: { backend: { strictJsonSchema: true } },
-      onError: ({ error }) => { streamError = error },
+      onError: ({ error }) => { streamError ??= error },
     })
     let displayed = ''
     for await (const partial of result.partialOutputStream) {

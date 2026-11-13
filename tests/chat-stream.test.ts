@@ -77,7 +77,7 @@ test('SSE handles escaped Unicode split between events and only calls fetch once
   try {
     const result = await streamChatMessage('jwt', 'Hi', (answer) => assert.ok(!answer.endsWith('\uD83D')))
     assert.equal(result.answer, 'Hi😀')
-    for (const [status, code] of [[401, 'unauthorized'], [400, 'validation'], [429, 'failed'], [502, 'failed']] as const) {
+    for (const [status, code] of [[401, 'unauthorized'], [400, 'validation'], [429, 'failed'], [502, 'failed'], [503, 'unavailable']] as const) {
       let calls = 0
       globalThis.fetch = async () => { calls++; return new Response('', { status }) }
       await assert.rejects(streamChatMessage('jwt', 'Hi', () => {}), (error: unknown) =>
@@ -140,6 +140,20 @@ test('SDK transport rejects an oversized stream without retrying the request', a
   try {
     await assert.rejects(streamChatMessage('jwt', 'Hello', () => {}), (error: unknown) =>
       error instanceof ChatError && error.code === 'failed')
+    assert.equal(calls, 1)
+  } finally { globalThis.fetch = previousFetch }
+})
+
+test('SDK preserves upstream unavailability when an SSE error is followed by EOF without DONE', async () => {
+  const previousFetch = globalThis.fetch
+  let calls = 0
+  globalThis.fetch = async () => {
+    calls++
+    return response(chunk('{"answer":"') + 'data: {"error":{"message":"AI unavailable","type":"server_error","code":"ai_unavailable"}}\n\n')
+  }
+  try {
+    await assert.rejects(streamChatMessage('jwt', 'Hi', () => {}), (error: unknown) =>
+      error instanceof ChatError && error.code === 'unavailable')
     assert.equal(calls, 1)
   } finally { globalThis.fetch = previousFetch }
 })
