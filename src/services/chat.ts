@@ -1,4 +1,5 @@
 import type { Schedule } from './schedules'
+import { loadChatSdk } from './chat-sdk-loader.ts'
 
 export interface ChatTurn {
   role: 'user' | 'assistant'
@@ -116,17 +117,19 @@ function adaptChatContent(value: CompletionContent): ChatMessageResponse {
 }
 
 export async function sendChatMessage(accessToken: string, message: string): Promise<ChatMessageResponse> {
-  const sdk = await import('./backend-chat.ts')
-  try { return adaptChatContent(await sdk.generateBackendChat(accessToken, message)) }
-  catch (cause) { throw cause instanceof ChatError ? cause : new ChatError(sdk.backendFailureCode(cause)) }
+  return loadChatSdk().catch(() => { throw new ChatError('network') }).then(async sdk => {
+    try { return adaptChatContent(await sdk.generateBackendChat(accessToken, message)) }
+    catch (cause) { throw cause instanceof ChatError ? cause : new ChatError(sdk.backendFailureCode(cause)) }
+  })
 }
 
 export async function streamChatMessage(
   accessToken: string, message: string, onAnswer: (answer: string) => void, signal?: AbortSignal,
 ): Promise<ChatMessageResponse> {
-  const sdk = await import('./backend-chat.ts')
-  try { return adaptChatContent(await sdk.streamBackendChat(accessToken, message, onAnswer, signal)) }
-  catch (cause) { throw cause instanceof ChatError ? cause : new ChatError(sdk.backendFailureCode(cause)) }
+  return loadChatSdk().catch(() => { throw new ChatError('network') }).then(async sdk => {
+    try { return adaptChatContent(await sdk.streamBackendChat(accessToken, message, onAnswer, signal)) }
+    catch (cause) { throw cause instanceof ChatError ? cause : new ChatError(sdk.backendFailureCode(cause)) }
+  })
 }
 
 export function confirmChatProposal(accessToken: string, id: string): Promise<{ schedule: Schedule }> {

@@ -304,6 +304,8 @@
     }
   },
   "chat": {
+    "streamTooLarge": "Dữ liệu trả lời của trợ lý vượt quá dung lượng cho phép.",
+    "streamMissingDone": "Luồng trả lời kết thúc nhưng thiếu dấu xác nhận hoàn tất.",
     "unavailableError": "Dịch vụ AI hiện không khả dụng. Tải lại lịch sử và thử lại sau.",
     "streamInterrupted": "Luồng trả lời bị gián đoạn. Tải lại lịch sử trước khi gửi tiếp.",
     "title": "Trợ lý AI",

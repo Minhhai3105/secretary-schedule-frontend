@@ -1,6 +1,6 @@
 import { createI18n } from 'vue-i18n'
-import vi from './vi.json'
-import en from './en.json'
+import vi from './vi.json' with { type: 'json' }
+import en from './en.json' with { type: 'json' }
 
 export type Locale = 'vi' | 'en'
 

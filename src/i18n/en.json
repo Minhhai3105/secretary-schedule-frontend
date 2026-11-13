@@ -304,6 +304,8 @@
     }
   },
   "chat": {
+    "streamTooLarge": "The assistant response exceeds the allowed size limit.",
+    "streamMissingDone": "The response stream ended without a completion marker.",
     "unavailableError": "The AI service is currently unavailable. Reload history and try again later.",
     "streamInterrupted": "The response was interrupted. Reload history before sending again.",
     "title": "AI assistant",

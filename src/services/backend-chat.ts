@@ -3,6 +3,7 @@ import { APICallError, generateText, jsonSchema, Output, streamText } from 'ai'
 import { z } from 'zod'
 import responseFormat from '../contracts/chat-response-format.json' with { type: 'json' }
 import { chatApiBaseUrl, type ChatErrorCode, type CompletionContent } from './chat.ts'
+import { i18n } from '../i18n/index.ts'
 
 const contentValidator = z.fromJSONSchema(
   responseFormat.json_schema.schema as Parameters<typeof z.fromJSONSchema>[0],
@@ -17,14 +18,14 @@ function boundedCompletionStream(body: ReadableStream<Uint8Array>): ReadableStre
   return body.pipeThrough(new TransformStream<Uint8Array, Uint8Array>({
     transform(chunk, controller) {
       bytes += chunk.byteLength
-      if (bytes > 1_000_000) throw new Error('Completion stream exceeds size limit')
+      if (bytes > 1_000_000) throw new Error(i18n.global.t('chat.streamTooLarge'))
       tail = (tail + decoder.decode(chunk, { stream: true })).slice(-64)
       controller.enqueue(chunk)
     },
     flush() {
       tail += decoder.decode()
       if (!/(?:^|\r?\n)data: ?\[DONE\]\r?\n\r?\n$/.test(tail)) {
-        throw new Error('Completion stream ended without DONE')
+        throw new Error(i18n.global.t('chat.streamMissingDone'))
       }
     },
   }))
