@@ -1,0 +1,69 @@
+name: Frontend CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run unit and contract tests
+        run: npm test
+
+      - name: Type-check and build production bundle
+        run: npm run build
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate Compose configuration
+        run: docker compose config --quiet
+
+      - name: Build and smoke-test frontend container
+        run: |
+          docker build --build-arg VITE_API_BASE_URL=http://localhost:8000 -t secretary-schedule-frontend:ci .
+          docker run -d --rm --name fe-ci-smoke -p 127.0.0.1:15173:8080 secretary-schedule-frontend:ci
+          trap 'docker stop fe-ci-smoke >/dev/null 2>&1 || true' EXIT
+          for _ in 1 2 3 4 5 6 7 8 9 10; do
+            curl --fail -sS http://127.0.0.1:15173/healthz >/dev/null && break
+            sleep 1
+          done
+          curl --fail -sS http://127.0.0.1:15173/healthz | grep -qx "ok"
+          curl --fail -sS -H "Referer: http://localhost:15173/reset-password?token=ci-secret-reset-token" \
+            "http://127.0.0.1:15173/reset-password?token=ci-secret-reset-token" | grep -q '<div id="app">'
+          if docker logs fe-ci-smoke 2>&1 | grep -q "ci-secret-reset-token"; then
+            echo "Reset token leaked in Nginx logs" >&2
+            exit 1
+          fi
+          docker logs fe-ci-smoke 2>&1 | grep -q '"GET /reset-password HTTP/1.1" 200'
+          missing_headers="$(curl -sSI http://127.0.0.1:15173/assets/missing-file.js)"
+          echo "$missing_headers" | head -n 1 | grep -q "404"
+          if echo "$missing_headers" | grep -qi "immutable"; then
+            echo "404 asset response must not carry immutable Cache-Control" >&2
+            exit 1
+          fi

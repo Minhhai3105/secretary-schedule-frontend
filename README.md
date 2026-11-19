@@ -13,3 +13,17 @@ The JSON contract file is a generated snapshot of `COMPLETION_RESPONSE_FORMAT` f
 An interrupted stream retains provisional answer text but no proposal controls. Reload history before sending again because the request may already have been saved. There is no automatic retry after stream failure. Requests abort after 180 seconds and on component unmount; minimizing the panel allows the answer to finish in the background.
 
 The SDK is loaded lazily when sending a message. Its default retries are disabled. A small fetch guard retains the 1 MB stream limit and requires `[DONE]`, because the SDK accepts EOF after a stop chunk without that marker. It does not parse SSE events. See [chat-sdk.md](docs/chat-sdk.md) for the implementation map and checks.
+
+## Docker & CI
+
+Build and run the production bundle inside a non-root Nginx container (`127.0.0.1:5173` → container port `8080`, SPA fallback enabled, `/healthz` healthcheck):
+
+```sh
+docker compose config --quiet
+VITE_API_BASE_URL=http://localhost:8000 docker compose up --build -d --wait
+curl --fail http://127.0.0.1:5173/healthz
+```
+
+`VITE_API_BASE_URL` is baked into the static bundle at image build time; rebuild (`--build`) when changing the backend origin. To run the complete stack (PostgreSQL 18, FastAPI, reminder worker, and this frontend together), use `compose.fullstack.yaml` in the companion `secretary-schedule-backend` repository.
+
+GitHub Actions (`.github/workflows/ci.yml`) runs `npm ci`, `npm test`, `npm run build`, Compose validation, and the Docker image build on every push and pull request targeting `main`.
