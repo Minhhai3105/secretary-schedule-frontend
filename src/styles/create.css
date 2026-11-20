@@ -1,18 +1,18 @@
-.create-page { max-width: 820px; }
-.create-heading h1 { margin: 0; font-size: 28px; font-weight: 700; }
-.create-heading p { margin: 3px 0 6px; color: #72829a; font-size: 14px; }
+.create-page { max-width: 820px; color: var(--text-main); }
+.create-heading h1 { margin: 0; font-size: 28px; font-weight: 700; color: var(--text-heading); }
+.create-heading p { margin: 3px 0 6px; color: var(--text-muted); font-size: 14px; }
 .create-back { margin-bottom: 12px; text-decoration: none; }
-.create-form, .create-result { padding: 26px; border: 1px solid #dce4ef; border-radius: 8px; background: #fff; }
+.create-form, .create-result { padding: 26px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-surface); }
 .create-form fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
-.create-form .form-label { color: #253248; font-size: 14px; font-weight: 600; }
+.create-form .form-label { color: var(--text-main); font-size: 14px; font-weight: 600; }
 .create-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
 .create-mode { display: flex; gap: 12px; flex-wrap: wrap; }
-.create-mode label { display: flex; align-items: center; gap: 8px; min-width: 140px; padding: 10px 14px; border: 1px solid #dce4ef; border-radius: 6px; cursor: pointer; }
-.create-mode label:has(input:checked) { border-color: #8bb4fb; background: #eaf2ff; color: #1755c4; }
-.create-timezone { color: #72829a; font-size: 12px; }
+.create-mode label { display: flex; align-items: center; gap: 8px; min-width: 140px; padding: 10px 14px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-surface); color: var(--text-main); cursor: pointer; }
+.create-mode label:has(input:checked) { border-color: var(--brand-border); background: var(--brand-soft); color: var(--brand-primary); }
+.create-timezone { color: var(--text-muted); font-size: 12px; }
 .create-actions { display: flex; gap: 10px; flex-wrap: wrap; }
-.create-result h2 { font-size: 22px; }
-.create-result p { color: #72829a; }
+.create-result h2 { font-size: 22px; color: var(--text-heading); }
+.create-result p { color: var(--text-muted); }
 .create-result .btn + .btn { margin-left: 10px; }
 @media (max-width: 700px) {
   .create-form, .create-result { padding: 18px; }

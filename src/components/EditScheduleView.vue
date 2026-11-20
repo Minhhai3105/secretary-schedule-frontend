@@ -1,8 +1,16 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { AuthError, refreshSession, type LoginResult } from '../services/auth'
-import { ScheduleUpdateError, updateSchedule, type Schedule, type ScheduleUpdatePayload } from '../services/schedules'
+import {
+  checkScheduleConflicts,
+  ScheduleLoadError,
+  ScheduleUpdateError,
+  updateSchedule,
+  type Schedule,
+  type ScheduleConflictResult,
+  type ScheduleUpdatePayload,
+} from '../services/schedules'
 import { vietnamDate, vietnamTime } from '../utils/week'
 import { canonicalRelatedPerson, isSelf } from '../utils/relatedPerson'
 
@@ -66,20 +74,154 @@ const notes = ref(
 const errorKey = ref('')
 const timeError = ref(false)
 const saving = ref(false)
+const conflicts = ref<Schedule[]>([])
+const showConflictModal = ref(false)
+const checkingConflicts = ref(false)
+const conflictCheckFailed = ref(false)
+let conflictCheckTimer: ReturnType<typeof setTimeout> | null = null
+let conflictRequestId = 0
+
+function formatScheduleRange(item: Schedule): string {
+  const start = `${vietnamDate(item.starts_at_utc)} ${vietnamTime(item.starts_at_utc)}`
+  if (!item.ends_at_utc) return start
+  return `${start} → ${vietnamTime(item.ends_at_utc)}`
+}
+
+async function fetchConflicts(startsAt: string, endsAt: string | null): Promise<Schedule[]> {
+  const requestId = ++conflictRequestId
+  checkingConflicts.value = true
+  conflictCheckFailed.value = false
+  try {
+    let activeToken = props.session.access_token
+    let res: ScheduleConflictResult
+    try {
+      res = await checkScheduleConflicts(
+        activeToken,
+        startsAt,
+        endsAt,
+        props.schedule.id,
+      )
+    } catch (cause) {
+      if (!(cause instanceof ScheduleLoadError) || cause.code !== 'unauthorized') throw cause
+      const renewed = await refreshSession()
+      if (!renewed) {
+        emit('sessionExpired')
+        throw cause
+      }
+      emit('sessionUpdated', renewed)
+      activeToken = renewed.access_token
+      res = await checkScheduleConflicts(
+        activeToken,
+        startsAt,
+        endsAt,
+        props.schedule.id,
+      )
+    }
+    if (requestId !== conflictRequestId) {
+      return conflicts.value
+    }
+    conflicts.value = res.conflicts
+    return res.conflicts
+  } catch (cause) {
+    if (requestId === conflictRequestId) {
+      conflictCheckFailed.value = true
+      throw cause
+    }
+    return conflicts.value
+  } finally {
+    if (requestId === conflictRequestId) {
+      checkingConflicts.value = false
+    }
+  }
+}
+
+watch([date, startTime, endDate, endTime], () => {
+  conflictRequestId++
+  checkingConflicts.value = false
+  conflictCheckFailed.value = false
+  conflicts.value = []
+
+  if (conflictCheckTimer) {
+    clearTimeout(conflictCheckTimer)
+    conflictCheckTimer = null
+  }
+  conflictCheckTimer = setTimeout(() => {
+    if (!date.value || !startTime.value) {
+      conflicts.value = []
+      return
+    }
+    const startsAt = vietnamLocalToUtc(date.value, startTime.value)
+    const endsAt = endTime.value ? vietnamLocalToUtc(endDate.value || date.value, endTime.value) : null
+    if (!startsAt || (endsAt && endsAt <= startsAt)) {
+      conflicts.value = []
+      return
+    }
+    void fetchConflicts(startsAt, endsAt).catch(() => {})
+  }, 300)
+})
+
+onMounted(() => {
+  if (date.value && startTime.value) {
+    const startsAt = vietnamLocalToUtc(date.value, startTime.value)
+    const endsAt = endTime.value ? vietnamLocalToUtc(endDate.value || date.value, endTime.value) : null
+    if (startsAt && (!endsAt || endsAt > startsAt)) {
+      void fetchConflicts(startsAt, endsAt).catch(() => {})
+    }
+  }
+})
 
 function vietnamLocalToUtc(day: string, time: string): string | null {
   const value = new Date(`${day}T${time}:00+07:00`)
   return Number.isNaN(value.getTime()) ? null : value.toISOString()
 }
 
-async function submit() {
+async function submit(forceProceed = false) {
   if (saving.value) return
   errorKey.value = ''
   timeError.value = false
+  conflictCheckFailed.value = false
   if (!title.value.trim() || !date.value || !startTime.value) {
     errorKey.value = 'create.required'
     return
   }
+  if (!forceProceed) {
+    while (true) {
+      if (conflictCheckTimer) {
+        clearTimeout(conflictCheckTimer)
+        conflictCheckTimer = null
+      }
+      const checkStartsAt = vietnamLocalToUtc(date.value, startTime.value)
+      const checkEndsAt = endTime.value ? vietnamLocalToUtc(endDate.value || date.value, endTime.value) : null
+      if (!checkStartsAt || (endTime.value && !checkEndsAt)) {
+        errorKey.value = 'edit.validationError'
+        return
+      }
+      if (checkEndsAt && checkEndsAt <= checkStartsAt) {
+        timeError.value = true
+        return
+      }
+
+      let detectedConflicts: Schedule[]
+      try {
+        detectedConflicts = await fetchConflicts(checkStartsAt, checkEndsAt)
+      } catch {
+        return
+      }
+
+      const currentStartsAt = vietnamLocalToUtc(date.value, startTime.value)
+      const currentEndsAt = endTime.value ? vietnamLocalToUtc(endDate.value || date.value, endTime.value) : null
+      if (currentStartsAt !== checkStartsAt || currentEndsAt !== checkEndsAt) {
+        continue
+      }
+
+      if (detectedConflicts.length > 0) {
+        showConflictModal.value = true
+        return
+      }
+      break
+    }
+  }
+  showConflictModal.value = false
   const startsAt = vietnamLocalToUtc(date.value, startTime.value)
   const endsAt = endTime.value ? vietnamLocalToUtc(endDate.value || date.value, endTime.value) : null
   if (!startsAt || (endTime.value && !endsAt)) {
@@ -167,6 +309,9 @@ async function submit() {
     saving.value = false
   }
 }
+function handleSubmit() {
+  void submit(false)
+}
 </script>
 
 <template>
@@ -177,7 +322,7 @@ async function submit() {
       <button class="btn btn-link px-0 create-back" type="button" :disabled="saving" @click="emit('cancel')">{{ t('edit.back') }}</button>
     </div>
 
-    <form class="create-form" novalidate @submit.prevent="submit">
+    <form class="create-form" novalidate @submit.prevent="handleSubmit">
       <fieldset :disabled="saving">
         <div class="mb-3">
           <label class="form-label" for="edit-title">{{ t('create.titleLabel') }} *</label>
@@ -221,6 +366,27 @@ async function submit() {
         <div class="mb-3"><label class="form-label" for="edit-notes">{{ t('create.notes') }}</label>
           <textarea id="edit-notes" v-model="notes" class="form-control" rows="3" /></div>
         <p class="create-timezone">{{ t('create.timezone') }}</p>
+        <div v-if="conflicts.length > 0" class="alert alert-warning small mb-3" role="alert">
+          <div class="fw-semibold mb-1">
+            {{ t('edit.conflictBanner', { count: conflicts.length }) }}
+          </div>
+          <ul class="mb-0 ps-3">
+            <li v-for="c in conflicts" :key="c.id">
+              <strong>{{ c.title }}</strong>: {{ formatScheduleRange(c) }}
+            </li>
+          </ul>
+        </div>
+        <div v-if="conflictCheckFailed" class="alert alert-warning small mb-3" role="alert">
+          <div>{{ t('edit.conflictCheckFailed') }}</div>
+          <div class="mt-2 d-flex gap-2">
+            <button class="btn btn-sm btn-outline-primary" type="button" :disabled="saving || checkingConflicts" @click="submit(false)">
+              {{ t('common.retry') }}
+            </button>
+            <button class="btn btn-sm btn-warning" type="button" :disabled="saving || checkingConflicts" @click="submit(true)">
+              {{ t('edit.conflictProceed') }}
+            </button>
+          </div>
+        </div>
         <div v-if="errorKey" class="alert alert-warning" role="alert">
           {{ t(errorKey) }}
           <button v-if="['edit.conflict', 'edit.cannotEdit', 'detail.notFound'].includes(errorKey)" class="btn btn-link btn-sm"
@@ -228,11 +394,39 @@ async function submit() {
         </div>
         <p v-if="saving" class="alert alert-info" role="status">{{ t('edit.saving') }}</p>
         <div class="create-actions">
-          <button class="btn btn-primary" type="submit">{{ t('edit.save') }}</button>
+          <button class="btn btn-primary" type="submit" :disabled="saving || checkingConflicts">{{ saving ? t('edit.saving') : t('edit.save') }}</button>
           <button class="btn btn-outline-secondary" type="button" @click="emit('cancel')">{{ t('create.cancel') }}</button>
         </div>
       </fieldset>
     </form>
+
+    <div v-if="showConflictModal" class="modal d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);" role="dialog" aria-modal="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title text-warning-emphasis">{{ t('edit.conflictModalTitle') }}</h5>
+            <button type="button" class="btn-close" aria-label="Close" @click="showConflictModal = false"></button>
+          </div>
+          <div class="modal-body">
+            <p>{{ t('edit.conflictModalMessage') }}</p>
+            <ul class="list-group mb-3">
+              <li v-for="c in conflicts" :key="c.id" class="list-group-item d-flex justify-content-between align-items-center">
+                <span><strong>{{ c.title }}</strong></span>
+                <small class="text-muted">{{ formatScheduleRange(c) }}</small>
+              </li>
+            </ul>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" @click="showConflictModal = false">
+              {{ t('edit.conflictChooseAnother') }}
+            </button>
+            <button type="button" class="btn btn-warning" @click="submit(true)">
+              {{ t('edit.conflictProceed') }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   </section>
 </template>
 
